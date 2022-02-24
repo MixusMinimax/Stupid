@@ -1,4 +1,13 @@
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[clap(version = env!("CARGO_PKG_VERSION"))]
+struct Arguments {
+    #[clap(short, long)]
+    input: Option<String>,
+}
+
 fn main() {
-    let x = (1, 2, 3);
-    println!("Hello, World! {:?}", x);
+    let args = Arguments::parse();
+    println!("{:?}", args);
 }
