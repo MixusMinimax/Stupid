@@ -20,9 +20,9 @@ impl CodeParser {
     pub fn parse(&self) -> Result<ParseResult, String> {
         Lexer::new(&self.source_path)
             .read()
-            .and_then(|lexer| lexer.lex())
-            .map(|result| {
-                println!("{:?}", result);
+            .and_then(|lexer| lexer.lex().map(|result| (lexer, result)))
+            .map(|(_, result)| {
+                println!("{:.1}", result);
                 result
             })
             .and_then(|result| self.to_ast(result))

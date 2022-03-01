@@ -1,18 +1,198 @@
 use lexgen::lexer;
 use lexgen_util::Loc;
-use std::{fs::File, io::Read, path::Path};
+use std::{fmt::Write, fs::File, io::Read, path::Path};
 
-lexer! {
-    LexerImpl -> Token;
-
-    rule Init {
-
-    }
+#[derive(Debug, strum_macros::Display)]
+pub enum Token {
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    Caret,
+    Hash,
+    EqEq,
+    TildeEq,
+    LtEq,
+    GtEq,
+    Lt,
+    Gt,
+    Eq,
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    RBracket,
+    Semicolon,
+    Colon,
+    Comma,
+    Dot,
+    DotDot,
+    DotDotDot,
+    RArrow,
+    Proc,
+    Return,
+    Const,
+    Let,
+    Var(String),
+    Number(String),
+    String(String),
 }
 
-#[derive(Debug)]
-pub enum Token {
-    String(String),
+#[derive(Debug, Default, Clone)]
+struct LexerState {
+    string_buf: String,
+}
+
+lexer! {
+    LexerImpl(LexerState) -> Token;
+
+    let whitespace = [' ' '\t' '\n'] | "\r\n";
+
+    let var_init = ['a'-'z' 'A'-'Z' '_'];
+    let var_subseq = $var_init | ['0'-'9'];
+
+    let digit = ['0'-'9'];
+    let hex_digit = ['a'-'f' 'A'-'F' '0'-'9'];
+
+    rule Init {
+        $whitespace,
+
+        "+" = Token::Plus,
+        "-" = Token::Minus,
+        "*" = Token::Star,
+        "/" = Token::Slash,
+        "%" = Token::Percent,
+        "^" = Token::Caret,
+        "#" = Token::Hash,
+        "==" = Token::EqEq,
+        "~=" = Token::TildeEq,
+        "<=" = Token::LtEq,
+        ">=" = Token::GtEq,
+        "<" = Token::Lt,
+        ">" = Token::Gt,
+        "=" = Token::Eq,
+        "(" = Token::LParen,
+        ")" = Token::RParen,
+        "{" = Token::LBrace,
+        "}" = Token::RBrace,
+        "]" = Token::RBracket,
+        ";" = Token::Semicolon,
+        ":" = Token::Colon,
+        "," = Token::Comma,
+        "." = Token::Dot,
+        ".." = Token::DotDot,
+        "..." = Token::DotDotDot,
+        "->" = Token::RArrow,
+        "proc" = Token::Proc,
+        "return" = Token::Return,
+        "const" = Token::Const,
+        "let" = Token::Let,
+
+        $var_init $var_subseq* => |lexer| {
+            let match_ = lexer.match_();
+            lexer.return_(Token::Var(match_.to_string()))
+        },
+
+        $digit+ ('.'? $digit+ (('e' | 'E') ('+'|'-')? $digit+)?)? => |lexer| {
+            let match_ = lexer.match_();
+            lexer.return_(Token::Number(match_.to_string()))
+        },
+
+        "0x" $hex_digit+ => |lexer| {
+            let match_ = lexer.match_();
+            lexer.return_(Token::Number(match_.to_string()))
+        },
+
+        '"' => |lexer| {
+            lexer.state().string_buf.clear();
+            lexer.switch(LexerImplRule::String)
+        },
+
+        "//" => |lexer| lexer.switch(LexerImplRule::Comment),
+
+        "/*" => |lexer| lexer.switch(LexerImplRule::BlockComment),
+    }
+
+    rule String {
+        '"' => |lexer| {
+            let str = lexer.state().string_buf.clone();
+            lexer.switch_and_return(LexerImplRule::Init, Token::String(str))
+        },
+
+        "\\a" => |lexer| {
+            lexer.state().string_buf.push('\u{7}');
+            lexer.continue_()
+        },
+
+        "\\b" => |lexer| {
+            lexer.state().string_buf.push('\u{8}');
+            lexer.continue_()
+        },
+
+        "\\f" => |lexer| {
+            lexer.state().string_buf.push('\u{c}');
+            lexer.continue_()
+        },
+
+        "\\n" => |lexer| {
+            lexer.state().string_buf.push('\n');
+            lexer.continue_()
+        },
+
+        "\\r" => |lexer| {
+            lexer.state().string_buf.push('\r');
+            lexer.continue_()
+        },
+
+        "\\t" => |lexer| {
+            lexer.state().string_buf.push('\t');
+            lexer.continue_()
+        },
+
+        "\\v" => |lexer| {
+            lexer.state().string_buf.push('\u{b}');
+            lexer.continue_()
+        },
+
+        "\\\\" => |lexer| {
+            lexer.state().string_buf.push('\\');
+            lexer.continue_()
+        },
+
+        "\\\"" => |lexer| {
+            lexer.state().string_buf.push('"');
+            lexer.continue_()
+        },
+
+        "\\'" => |lexer| {
+            lexer.state().string_buf.push('\'');
+            lexer.continue_()
+        },
+
+        "\\\n" => |lexer| {
+            lexer.state().string_buf.push('\n');
+            lexer.continue_()
+        },
+
+        _ => |lexer| {
+            let char = lexer.match_().chars().next_back().unwrap();
+            lexer.state().string_buf.push(char);
+            lexer.continue_()
+        },
+    }
+
+    rule Comment {
+        "\r\n" | '\n' => |lexer| lexer.switch(LexerImplRule::Init),
+
+        _ => |lexer| lexer.continue_(),
+    }
+
+    rule BlockComment {
+        "*/" => |lexer| lexer.switch(LexerImplRule::Init),
+
+        _ => |lexer| lexer.continue_(),
+    }
 }
 
 #[derive(Debug)]
@@ -61,12 +241,103 @@ impl<'path> Lexer<'path> {
                     Ok((start, token, end)) => {
                         tokens.push((start, token, end));
                     }
-                    Err(reason) => return Err(format!("{:?}", reason)),
+                    Err(reason) => {
+                        let c: char = content.as_bytes()[reason.location.byte_idx].into();
+                        return Err(format!("{:?}, char: '{}'", reason, c));
+                    }
                 }
             }
             Ok(LexResult::new(tokens))
         } else {
             Err("File has not been read!".to_string())
         }
+    }
+}
+
+// Display
+
+impl std::fmt::Display for LexResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(_) = f.precision() {
+            return reconstruct(&self.tokens, f);
+        }
+        let mut is_first = true;
+        for (start, token, end) in self.tokens.iter() {
+            if is_first {
+                is_first = false;
+            } else {
+                f.write_str(", ")?;
+            }
+            f.write_char('(')?;
+            fmt_token(&token, f)?;
+            f.write_str(", ")?;
+            fmt_loc(&start, f)?;
+            f.write_char('-')?;
+            fmt_loc(&end, f)?;
+            f.write_char(')')?;
+        }
+        Ok(())
+    }
+}
+
+fn reconstruct(
+    tokens: &Vec<(Loc, Token, Loc)>,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    let mut is_first = true;
+    for (_, token, _) in tokens {
+        if is_first {
+            is_first = false;
+        } else {
+            f.write_char(' ')?;
+        }
+        match token {
+            Token::Plus => f.write_char('+'),
+            Token::Minus => f.write_char('-'),
+            Token::Star => f.write_char('*'),
+            Token::Slash => f.write_char('/'),
+            Token::Percent => f.write_char('%'),
+            Token::Caret => f.write_char('^'),
+            Token::Hash => f.write_char('#'),
+            Token::EqEq => f.write_str("=="),
+            Token::TildeEq => f.write_str("~="),
+            Token::LtEq => f.write_str("<="),
+            Token::GtEq => f.write_str(">="),
+            Token::Lt => f.write_char('<'),
+            Token::Gt => f.write_char('>'),
+            Token::Eq => f.write_char('='),
+            Token::LParen => f.write_char('('),
+            Token::RParen => f.write_char(')'),
+            Token::LBrace => f.write_char('{'),
+            Token::RBrace => f.write_char('}'),
+            Token::RBracket => f.write_char(']'),
+            Token::Semicolon => f.write_char(';'),
+            Token::Colon => f.write_char(':'),
+            Token::Comma => f.write_char(','),
+            Token::Dot => f.write_char('.'),
+            Token::DotDot => f.write_str(".."),
+            Token::DotDotDot => f.write_str("..."),
+            Token::RArrow => f.write_str("->"),
+            Token::Proc => f.write_str("proc"),
+            Token::Return => f.write_str("return"),
+            Token::Const => f.write_str("const"),
+            Token::Let => f.write_str("let"),
+            Token::Var(s) | Token::Number(s) => f.write_str(s),
+            Token::String(s) => f.write_fmt(format_args!("{:?}", s.as_str())),
+        }?;
+    }
+    Ok(())
+}
+
+fn fmt_loc(loc: &Loc, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_fmt(format_args!("{}:{}", loc.line, loc.col))
+}
+
+fn fmt_token(token: &Token, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match token {
+        Token::Var(s) | Token::Number(s) | Token::String(s) => {
+            f.write_fmt(format_args!("{}{{{}}}", token, s))
+        }
+        _ => f.write_fmt(format_args!("{}", token)),
     }
 }
