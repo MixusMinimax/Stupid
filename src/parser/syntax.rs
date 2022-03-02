@@ -178,6 +178,90 @@ parser! {
         "-" <f:Fac> => (||{
             Ok(ast::Expression::Negate(Box::new(f?)))
         })(),
+
+        "{" <body:BlockBody> "}" => body,
+    };
+
+    BlockBody: Result<ast::Expression, ParseError> = {
+        => Ok(ast::Expression::Block { statements: vec![], last: None }),
+
+        <mut block:BlockBody> <s:Statement> => (||{
+            match block {
+                Ok(ast::Expression::Block {ref mut statements, last: _}) => {
+                    statements.push(s?);
+                    block
+                },
+                e => e
+            }
+        })(),
+
+        <mut block:BlockBody> <e:Expr2> => (||{
+            match block {
+                Ok(ast::Expression::Block {statements: _, ref mut last}) => {
+                    *last = Some(Box::new(e?));
+                    block
+                },
+                e => e
+            }
+        })(),
+    };
+
+    Expr2: Result<ast::Expression, ParseError> = {
+        <l:Expr2> "+" <r:Term> => (||{
+            Ok(ast::Expression::Sum(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Expr2> "-" <r:Term> => (||{
+            Ok(ast::Expression::Difference(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <t:Term> => t,
+    };
+
+    Statement: Result<ast::Statement, ParseError> = {
+        <e:Expr2> ";" => (||{
+            Ok(ast::Statement::ExpressionStatement(e?))
+        })(),
+
+        <name:"var"> "=" <e:Expr2> ";" => (||{
+            Ok(ast::Statement::Assignment { name: name.0, value: Box::new(e?) })
+        })(),
+
+        "let" <name:"var"> ":" <t:"var"> ";" => (||{
+            Ok(ast::Statement::VariableDeclaration {
+                name: name.0,
+                var_type: ast::Type::Named(t.0),
+                value: None,
+            })
+        })(),
+
+        "let" <name:"var"> ":" <t:"var"> "=" <e:Expr3> ";" => (||{
+            Ok(ast::Statement::VariableDeclaration {
+                name: name.0,
+                var_type: ast::Type::Named(t.0),
+                value: Some(Box::new(e?)),
+            })
+        })(),
+
+        "let" <name:"var"> "=" <e:Expr3> ";" => (||{
+            Ok(ast::Statement::VariableDeclaration {
+                name: name.0,
+                var_type: ast::Type::Auto,
+                value: Some(Box::new(e?)),
+            })
+        })(),
+    };
+
+    Expr3: Result<ast::Expression, ParseError> = {
+        <l:Expr3> "+" <r:Term> => (||{
+            Ok(ast::Expression::Sum(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Expr3> "-" <r:Term> => (||{
+            Ok(ast::Expression::Difference(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <t:Term> => t,
     };
 }
 
@@ -248,10 +332,6 @@ mod ast {
             statements: Vec<Statement>,
             last: Option<Box<Expression>>,
         },
-        Assignment {
-            variable_name: String,
-            value: Box<Expression>,
-        },
         Integer(i32),
         Long(i64),
         Float(f32),
@@ -265,13 +345,21 @@ mod ast {
     }
 
     #[derive(Debug, Clone)]
-    enum Statement {
+    pub enum Statement {
         VariableDeclaration {
             name: String,
             var_type: Type,
             value: Option<Box<Expression>>,
         },
         ExpressionStatement(Expression),
+        // I would like for assignments to be expressions, but that isn't possible with a CLR parser.
+        // This is because we need to see the assignment operator before knowing what's on the left of it.
+        // In other words, assignments are right-associative: a = b = c <=> a = (b = c)
+        // Once ParseGen has support for that, this will be changed.
+        Assignment {
+            name: String,
+            value: Box<Expression>,
+        },
     }
 }
 

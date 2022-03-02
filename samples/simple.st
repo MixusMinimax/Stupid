@@ -3,6 +3,15 @@ const B = 69;
 
 proc main 0
 
-proc foo(a: int) -> int (1 + 2) * (3 + (6 - 1) / 5)
-
-proc add(a: int, b: int) -> int a + b
+proc foo(a: int, b: int) -> int {
+    let y: int;
+    let x = {
+        let c: int = a + b;
+        c - 1
+    };
+    y = {
+        let d = a * b;
+        d * x
+    };
+    x + y
+}
