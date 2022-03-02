@@ -150,6 +150,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "parsegen"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "117c643a86ede7a794faaa2a37896be50f100671121e2fa93a777727928a2f23"
+dependencies = [
+ "fxhash",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "proc-macro-error"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -229,6 +241,7 @@ dependencies = [
  "clap",
  "lexgen",
  "lexgen_util",
+ "parsegen",
  "strum",
  "strum_macros",
 ]

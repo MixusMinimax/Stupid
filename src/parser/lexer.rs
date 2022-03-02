@@ -2,7 +2,9 @@ use lexgen::lexer;
 use lexgen_util::Loc;
 use std::{fmt::Write, fs::File, io::Read, path::Path};
 
-#[derive(Debug, strum_macros::Display)]
+pub type TokenList = Vec<TokenEntry>;
+
+#[derive(Debug, Clone, strum_macros::Display)]
 pub enum Token {
     Plus,
     Minus,
@@ -35,9 +37,15 @@ pub enum Token {
     Const,
     Let,
     Var(String),
-    Number(String),
+    Integer(String),
+    Long(String),
+    Float(String),
+    Double(String),
     String(String),
 }
+
+#[derive(Debug, Clone)]
+pub struct TokenEntry(pub Loc, pub Token, pub Loc);
 
 #[derive(Debug, Default, Clone)]
 struct LexerState {
@@ -94,14 +102,62 @@ lexer! {
             lexer.return_(Token::Var(match_.to_string()))
         },
 
-        $digit+ ('.'? $digit+ (('e' | 'E') ('+'|'-')? $digit+)?)? => |lexer| {
+        $digit+ => |lexer| {
             let match_ = lexer.match_();
-            lexer.return_(Token::Number(match_.to_string()))
+            lexer.return_(Token::Integer(match_.to_string()))
+        },
+
+        $digit+ ('l' | 'L') => |lexer| {
+            let match_ = lexer.match_();
+            let mut s = match_.to_string();
+            s.pop();
+            lexer.return_(Token::Long(s))
+        },
+
+        $digit+ ('f' | 'F') => |lexer| {
+            let match_ = lexer.match_();
+            let mut s = match_.to_string();
+            s.pop();
+            lexer.return_(Token::Float(s))
+        },
+
+        $digit+ ('d' | 'D') => |lexer| {
+            let match_ = lexer.match_();
+            let mut s = match_.to_string();
+            s.pop();
+            lexer.return_(Token::Double(s))
         },
 
         "0x" $hex_digit+ => |lexer| {
             let match_ = lexer.match_();
-            lexer.return_(Token::Number(match_.to_string()))
+            lexer.return_(Token::Integer(match_.to_string()))
+        },
+
+        "0x" $hex_digit+ ('l' | 'L') => |lexer| {
+            let match_ = lexer.match_();
+            let mut s = match_.to_string();
+            s.pop();
+            lexer.return_(Token::Long(s))
+        },
+
+        ($digit+ ('.' $digit*)? | '.' $digit+) ('e' | 'E') ('+'|'-')? $digit+ ('f' | 'F')? => |lexer| {
+            let match_ = lexer.match_();
+            lexer.return_(Token::Float(match_.to_string()))
+        },
+
+        ($digit+ ('.' $digit*)? | '.' $digit+) ('e' | 'E') ('+'|'-')? $digit+ ('d' | 'D') => |lexer| {
+            let match_ = lexer.match_();
+            lexer.return_(Token::Double(match_.to_string()))
+        },
+
+        ($digit+ '.' $digit* | $digit* '.' $digit+) ('f' | 'F')? => |lexer| {
+            let match_ = lexer.match_();
+            lexer.return_(Token::Float(match_.to_string()))
+        },
+
+        ($digit+ '.' $digit* | $digit* '.' $digit+) ('d' | 'D') => |lexer| {
+            let match_ = lexer.match_();
+            lexer.return_(Token::Double(match_.to_string()))
         },
 
         '"' => |lexer| {
@@ -197,11 +253,11 @@ lexer! {
 
 #[derive(Debug)]
 pub struct LexResult {
-    pub tokens: Vec<(Loc, Token, Loc)>,
+    pub tokens: TokenList,
 }
 
 impl LexResult {
-    pub fn new(tokens: Vec<(Loc, Token, Loc)>) -> Self {
+    pub fn new(tokens: TokenList) -> Self {
         LexResult { tokens }
     }
 }
@@ -239,7 +295,7 @@ impl<'path> Lexer<'path> {
             for token in lexer {
                 match token {
                     Ok((start, token, end)) => {
-                        tokens.push((start, token, end));
+                        tokens.push(TokenEntry(start, token, end));
                     }
                     Err(reason) => {
                         let c: char = content.as_bytes()[reason.location.byte_idx].into();
@@ -256,36 +312,41 @@ impl<'path> Lexer<'path> {
 
 // Display
 
+impl std::fmt::Display for TokenEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let TokenEntry(ref start, ref token, ref end) = self;
+        f.write_char('(')?;
+        fmt_token(&token, f)?;
+        f.write_str(", ")?;
+        fmt_loc(&start, f)?;
+        f.write_char('-')?;
+        fmt_loc(&end, f)?;
+        f.write_char(')')?;
+        Ok(())
+    }
+}
+
 impl std::fmt::Display for LexResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(_) = f.precision() {
             return reconstruct(&self.tokens, f);
         }
         let mut is_first = true;
-        for (start, token, end) in self.tokens.iter() {
+        for token in self.tokens.iter() {
             if is_first {
                 is_first = false;
             } else {
                 f.write_str(", ")?;
             }
-            f.write_char('(')?;
-            fmt_token(&token, f)?;
-            f.write_str(", ")?;
-            fmt_loc(&start, f)?;
-            f.write_char('-')?;
-            fmt_loc(&end, f)?;
-            f.write_char(')')?;
+            f.write_fmt(format_args!("{}", token))?;
         }
         Ok(())
     }
 }
 
-fn reconstruct(
-    tokens: &Vec<(Loc, Token, Loc)>,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
+fn reconstruct(tokens: &TokenList, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     let mut is_first = true;
-    for (_, token, _) in tokens {
+    for TokenEntry(_, token, _) in tokens {
         if is_first {
             is_first = false;
         } else {
@@ -322,7 +383,11 @@ fn reconstruct(
             Token::Return => f.write_str("return"),
             Token::Const => f.write_str("const"),
             Token::Let => f.write_str("let"),
-            Token::Var(s) | Token::Number(s) => f.write_str(s),
+            Token::Var(s)
+            | Token::Integer(s)
+            | Token::Long(s)
+            | Token::Float(s)
+            | Token::Double(s) => f.write_str(s),
             Token::String(s) => f.write_fmt(format_args!("{:?}", s.as_str())),
         }?;
     }
@@ -335,9 +400,12 @@ fn fmt_loc(loc: &Loc, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 
 fn fmt_token(token: &Token, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match token {
-        Token::Var(s) | Token::Number(s) | Token::String(s) => {
-            f.write_fmt(format_args!("{}{{{}}}", token, s))
-        }
+        Token::Var(s)
+        | Token::Integer(s)
+        | Token::Long(s)
+        | Token::Float(s)
+        | Token::Double(s)
+        | Token::String(s) => f.write_fmt(format_args!("{}{{{}}}", token, s)),
         _ => f.write_fmt(format_args!("{}", token)),
     }
 }

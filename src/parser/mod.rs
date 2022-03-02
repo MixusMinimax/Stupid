@@ -1,14 +1,13 @@
 mod lexer;
+mod syntax;
 
-use self::lexer::{LexResult, Lexer};
+use self::lexer::Lexer;
+use self::syntax::{ParseResult, SyntaxParser};
 use std::path::{Path, PathBuf};
 
 pub struct CodeParser {
     source_path: PathBuf,
 }
-
-#[derive(Default, Debug)]
-pub struct ParseResult {}
 
 impl CodeParser {
     pub fn new<P: AsRef<Path>>(source_path: P) -> CodeParser {
@@ -18,17 +17,12 @@ impl CodeParser {
     }
 
     pub fn parse(&self) -> Result<ParseResult, String> {
-        Lexer::new(&self.source_path)
-            .read()
-            .and_then(|lexer| lexer.lex().map(|result| (lexer, result)))
-            .map(|(_, result)| {
-                println!("{:.1}", result);
-                result
-            })
-            .and_then(|result| self.to_ast(result))
-    }
-
-    fn to_ast(&self, lex_result: LexResult) -> Result<ParseResult, String> {
-        Ok(ParseResult::default())
+        let lexed = Lexer::new(&self.source_path).read()?.lex()?;
+        println!("{}", lexed);
+        let parsed = SyntaxParser::new()
+            .parse(lexed.tokens)
+            .map_err(|e| format!("{}", e))?;
+        // println!("{}", parsed);
+        Ok(parsed)
     }
 }
