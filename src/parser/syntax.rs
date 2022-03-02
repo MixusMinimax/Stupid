@@ -1,6 +1,7 @@
 use super::lexer::{Token, TokenEntry, TokenList};
+use duplicate::duplicate_item;
 use parsegen::parser;
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 type TokenAndEntry = (Token, TokenEntry);
 
@@ -128,8 +129,54 @@ parser! {
     };
 
     Expr: Result<ast::Expression, ParseError> = {
+        <l:Expr> "+" <r:Term> => (||{
+            Ok(ast::Expression::Sum(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Expr> "-" <r:Term> => (||{
+            Ok(ast::Expression::Difference(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <t:Term> => t,
+    };
+
+    Term: Result<ast::Expression, ParseError> = {
+        <l:Term> "*" <r:Fac> => (||{
+            Ok(ast::Expression::Product(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Term> "/" <r:Fac> => (||{
+            Ok(ast::Expression::Quotient(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <f:Fac> => f,
+    };
+
+    Fac: Result<ast::Expression, ParseError> = {
         <n:"int"> => (||{
-            Ok(ast::Expression::Integer(n.0.parse().map_err(|err| ParseError::new(format!("{}", err), Some(n.1)))?))
+            Ok(ast::Expression::Integer(Parsable::parse(&n.0)?))
+        })(),
+
+        <n:"long"> => (||{
+            Ok(ast::Expression::Long(Parsable::parse(&n.0)?))
+        })(),
+
+        <n:"float"> => (||{
+            Ok(ast::Expression::Float(Parsable::parse(&n.0)?))
+        })(),
+
+        <n:"double"> => (||{
+            Ok(ast::Expression::Double(Parsable::parse(&n.0)?))
+        })(),
+
+        <var:"var"> => (||{
+            Ok(ast::Expression::Variable(var.0))
+        })(),
+
+        "(" <e:Expr> ")" => e,
+
+        "-" <f:Fac> => (||{
+            Ok(ast::Expression::Negate(Box::new(f?)))
         })(),
     };
 }
@@ -161,20 +208,20 @@ enum State {
 
 mod ast {
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Root {
         pub constants: Vec<Const>,
         pub functions: Vec<Proc>,
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Const {
         pub var_type: Type,
         pub name: String,
         pub value: Expression,
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Proc {
         pub name: String,
         pub arguments: Vec<Arg>,
@@ -182,20 +229,20 @@ mod ast {
         pub value: Expression,
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum Type {
         Auto,
         Named(String),
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Arg {
         pub arg_type: Type,
         pub name: String,
         pub default: Option<Box<Expression>>,
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum Expression {
         Block {
             statements: Vec<Statement>,
@@ -206,9 +253,18 @@ mod ast {
             value: Box<Expression>,
         },
         Integer(i32),
+        Long(i64),
+        Float(f32),
+        Double(f64),
+        Variable(String),
+        Sum(Box<Expression>, Box<Expression>),
+        Difference(Box<Expression>, Box<Expression>),
+        Product(Box<Expression>, Box<Expression>),
+        Quotient(Box<Expression>, Box<Expression>),
+        Negate(Box<Expression>),
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     enum Statement {
         VariableDeclaration {
             name: String,
@@ -216,6 +272,38 @@ mod ast {
             value: Option<Box<Expression>>,
         },
         ExpressionStatement(Expression),
+    }
+}
+
+trait Parsable {
+    fn parse(literal: &String) -> Result<Self, ParseError>
+    where
+        Self: Sized;
+}
+
+#[duplicate_item(T; [f32]; [f64])]
+impl Parsable for T {
+    fn parse(literal: &String) -> Result<Self, ParseError> {
+        literal
+            .parse()
+            .map_err(|err| ParseError::new(format!("{}", err), None))
+    }
+}
+
+#[duplicate_item(T; [i32]; [i64])]
+impl Parsable for T {
+    fn parse(literal: &String) -> Result<Self, ParseError> {
+        if literal.starts_with("0x") {
+            T::from_str_radix(&literal.as_str()[2..], 16)
+                .map_err(|err| ParseError::new(format!("{}", err), None))
+        } else if literal.starts_with("0b") {
+            T::from_str_radix(&literal.as_str()[2..], 2)
+                .map_err(|err| ParseError::new(format!("{}", err), None))
+        } else {
+            literal
+                .parse()
+                .map_err(|err| ParseError::new(format!("{}", err), None))
+        }
     }
 }
 

@@ -13,3 +13,4 @@ lexgen_util = { version = "0.10.0" }
 parsegen = { version = "0.1.1" }
 strum = { version = "0.24" }
 strum_macros = {version = "0.24" }
+duplicate = { version = "0.4.0" }

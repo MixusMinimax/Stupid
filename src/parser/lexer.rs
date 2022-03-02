@@ -140,6 +140,18 @@ lexer! {
             lexer.return_(Token::Long(s))
         },
 
+        "0b" ('0' | '1')+ => |lexer| {
+            let match_ = lexer.match_();
+            lexer.return_(Token::Integer(match_.to_string()))
+        },
+
+        "0b" ('0' | '1')+ ('l' | 'L') => |lexer| {
+            let match_ = lexer.match_();
+            let mut s = match_.to_string();
+            s.pop();
+            lexer.return_(Token::Long(s))
+        },
+
         ($digit+ ('.' $digit*)? | '.' $digit+) ('e' | 'E') ('+'|'-')? $digit+ ('f' | 'F')? => |lexer| {
             let match_ = lexer.match_();
             lexer.return_(Token::Float(match_.to_string()))

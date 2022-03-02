@@ -62,6 +62,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "duplicate"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a2535fcf1437c9de0d91a3921351c474258abdb6440cd03bb5a7cf0547e7214"
+dependencies = [
+ "heck",
+ "proc-macro-error",
+]
+
+[[package]]
 name = "fxhash"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -239,6 +249,7 @@ name = "stupid"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "duplicate",
  "lexgen",
  "lexgen_util",
  "parsegen",
