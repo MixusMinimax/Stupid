@@ -223,12 +223,20 @@ parser! {
     };
 
     Term: Result<ast::Expression, ParseError> = {
-        <l:Term> "*" <r:Fac> => (||{
+        <l:Term> "*" <r:Member> => (||{
             Ok(ast::Expression::Product(Box::new(l?), Box::new(r?)))
         })(),
 
-        <l:Term> "/" <r:Fac> => (||{
+        <l:Term> "/" <r:Member> => (||{
             Ok(ast::Expression::Quotient(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <m:Member> => m,
+    };
+
+    Member: Result<ast::Expression, ParseError> = {
+        <m:Member> "." <name:"var"> => (||{
+            Ok(ast::Expression::Member(Box::new(m?), name.0))
         })(),
 
         <f:Fac> => f,
@@ -420,6 +428,8 @@ mod ast {
         },
         Assignment(Box<Expression>, Box<Expression>),
         Deref(Box<Expression>),
+
+        Member(Box<Expression>, String),
 
         Integer(i32),
         Long(i64),
