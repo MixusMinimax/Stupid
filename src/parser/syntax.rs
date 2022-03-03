@@ -1,7 +1,7 @@
 use super::lexer::{Token, TokenEntry, TokenList};
 use duplicate::duplicate_item;
 use parsegen::parser;
-use std::{fmt::Display, cell::Ref};
+use std::{fmt::Display};
 
 type TokenAndEntry = (Token, TokenEntry);
 
@@ -89,11 +89,11 @@ parser! {
     };
 
     Proc: Result<ast::Proc, ParseError> = {
-        "proc" <name:"var"> "(" <args:Args> ")" <e:Expr> => (||{
+        "proc" <name:"var"> "(" <args:ArgsDecl> ")" <e:Expr> => (||{
             Ok(ast::Proc { name: name.0, return_type: ast::Type::Auto, arguments: args?, value: e? })
         })(),
 
-        "proc" <name:"var"> "(" <args:Args> ")" "->" <t:"var"> <e:Expr> => (||{
+        "proc" <name:"var"> "(" <args:ArgsDecl> ")" "->" <t:"var"> <e:Expr> => (||{
             Ok(ast::Proc { name: name.0, return_type: ast::Type::Named(t.0), arguments: args?, value: e? })
         })(),
 
@@ -106,14 +106,14 @@ parser! {
         })(),
     };
 
-    Args: Result<Vec<ast::Arg>, ParseError> = {
+    ArgsDecl: Result<Vec<ast::Arg>, ParseError> = {
         => Ok(vec![]),
 
-        <arg:Arg> => (||{
+        <arg:ArgDecl> => (||{
             Ok(vec![arg?])
         })(),
 
-        <mut args:Args> "," <arg:Arg> => (||{
+        <mut args:ArgsDecl> "," <arg:ArgDecl> => (||{
             match args {
                 Ok(mut args) => {
                     args.push(arg?);
@@ -124,7 +124,7 @@ parser! {
         })()
     };
 
-    Arg: Result<ast::Arg, ParseError> = {
+    ArgDecl: Result<ast::Arg, ParseError> = {
         <name:"var"> ":" <t:"var"> => (||{
             Ok(ast::Arg { name: name.0, arg_type: ast::Type::Named(t.0), default: None })
         })(),
@@ -135,6 +135,24 @@ parser! {
 
         <name:"var"> ":=" <e:Cond> => (||{
             Ok(ast::Arg { name: name.0, arg_type: ast::Type::Auto, default: Some(Box::new(e?)) })
+        })(),
+    };
+
+    ExprList: Result<Vec<ast::Expression>, ParseError> = {
+        => Ok(vec![]),
+
+        <e:Expr> => (||{
+            Ok(vec![e?])
+        })(),
+
+        <mut exprs:ExprList> "," <e:Expr> => (||{
+            match exprs {
+                Ok(mut l) => {
+                    l.push(e?);
+                    Ok(l)
+                },
+                e => e
+            }
         })(),
     };
 
@@ -223,12 +241,23 @@ parser! {
     };
 
     Term: Result<ast::Expression, ParseError> = {
-        <l:Term> "*" <r:Member> => (||{
+        <l:Term> "*" <r:FunctionCall> => (||{
             Ok(ast::Expression::Product(Box::new(l?), Box::new(r?)))
         })(),
 
-        <l:Term> "/" <r:Member> => (||{
+        <l:Term> "/" <r:FunctionCall> => (||{
             Ok(ast::Expression::Quotient(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <f:FunctionCall> => f,
+    };
+
+    FunctionCall: Result<ast::Expression, ParseError> = {
+        <f:FunctionCall> "(" <args:ExprList> ")" => (||{
+            Ok(ast::Expression::FunctionCall{
+                function: Box::new(f?),
+                arguments: args?,
+            })
         })(),
 
         <m:Member> => m,
@@ -374,10 +403,6 @@ impl SyntaxParser {
     }
 }
 
-enum State {
-    Root,
-}
-
 mod ast {
 
     #[derive(Debug, Clone)]
@@ -430,6 +455,11 @@ mod ast {
         Deref(Box<Expression>),
 
         Member(Box<Expression>, String),
+        FunctionCall{
+            function: Box<Expression>,
+            // TODO: named arguments
+            arguments: Vec<Expression>,
+        },
 
         Integer(i32),
         Long(i64),
