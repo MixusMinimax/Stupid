@@ -178,23 +178,23 @@ parser! {
 
     Cond: Result<ast::Expression, ParseError> = {
         <l:Cond> "&&" <r:Comparison> => (||{
-            Ok(ast::Expression::And(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::And, Box::new(r?)))
         })(),
 
         <l:Cond> "&" <r:Comparison> => (||{
-            Ok(ast::Expression::BitAnd(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::BitAnd, Box::new(r?)))
         })(),
 
         <l:Cond> "||" <r:Comparison> => (||{
-            Ok(ast::Expression::Or(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Or, Box::new(r?)))
         })(),
 
         <l:Cond> "|" <r:Comparison> => (||{
-            Ok(ast::Expression::BitOr(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::BitOr, Box::new(r?)))
         })(),
 
         <l:Cond> "^" <r:Comparison> => (||{
-            Ok(ast::Expression::BitEor(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::BitEor, Box::new(r?)))
         })(),
 
         <c:Comparison> => c,
@@ -202,27 +202,27 @@ parser! {
 
     Comparison: Result<ast::Expression, ParseError> = {
         <l:Comparison> "==" <r:Sum> => (||{
-            Ok(ast::Expression::Equals(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Equals, Box::new(r?)))
         })(),
 
         <l:Comparison> "!=" <r:Sum> => (||{
-            Ok(ast::Expression::NotEquals(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::NotEquals, Box::new(r?)))
         })(),
 
         <l:Comparison> ">" <r:Sum> => (||{
-            Ok(ast::Expression::Greater(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Greater, Box::new(r?)))
         })(),
 
         <l:Comparison> ">=" <r:Sum> => (||{
-            Ok(ast::Expression::GreaterEq(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::GreaterEq, Box::new(r?)))
         })(),
 
         <l:Comparison> "<" <r:Sum> => (||{
-            Ok(ast::Expression::Less(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Less, Box::new(r?)))
         })(),
 
         <l:Comparison> "<=" <r:Sum> => (||{
-            Ok(ast::Expression::LessEq(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::LessEq, Box::new(r?)))
         })(),
 
         <s:Sum> => s,
@@ -230,11 +230,11 @@ parser! {
 
     Sum: Result<ast::Expression, ParseError> = {
         <l:Sum> "+" <r:Term> => (||{
-            Ok(ast::Expression::Sum(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Add, Box::new(r?)))
         })(),
 
         <l:Sum> "-" <r:Term> => (||{
-            Ok(ast::Expression::Difference(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Subtract, Box::new(r?)))
         })(),
 
         <t:Term> => t,
@@ -242,11 +242,11 @@ parser! {
 
     Term: Result<ast::Expression, ParseError> = {
         <l:Term> "*" <r:FunctionCall> => (||{
-            Ok(ast::Expression::Product(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Multiply, Box::new(r?)))
         })(),
 
         <l:Term> "/" <r:FunctionCall> => (||{
-            Ok(ast::Expression::Quotient(Box::new(l?), Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Divide, Box::new(r?)))
         })(),
 
         <f:FunctionCall> => f,
@@ -298,19 +298,19 @@ parser! {
         })(),
 
         "-" <f:Fac> => (||{
-            Ok(ast::Expression::Negate(Box::new(f?)))
+            Ok(ast::Expression::UnOp(ast::UnOperator::Negate, Box::new(f?)))
         })(),
 
         "!" <f:Fac> => (||{
-            Ok(ast::Expression::Not(Box::new(f?)))
+            Ok(ast::Expression::UnOp(ast::UnOperator::Not, Box::new(f?)))
         })(),
 
         "~" <f:Fac> => (||{
-            Ok(ast::Expression::BitNot(Box::new(f?)))
+            Ok(ast::Expression::UnOp(ast::UnOperator::BitNot, Box::new(f?)))
         })(),
 
         "*" <f:Fac> => (||{
-            Ok(ast::Expression::Deref(Box::new(f?)))
+            Ok(ast::Expression::UnOp(ast::UnOperator::Deref, Box::new(f?)))
         })(),
 
         "{" <body:BlockBody> "}" => body,
@@ -452,7 +452,6 @@ mod ast {
             else_: Box<Expression>,
         },
         Assignment(Box<Expression>, Box<Expression>),
-        Deref(Box<Expression>),
 
         Member(Box<Expression>, String),
         FunctionCall {
@@ -466,26 +465,36 @@ mod ast {
         Float(f32),
         Double(f64),
         Variable(String),
-        Sum(Box<Expression>, Box<Expression>),
-        Difference(Box<Expression>, Box<Expression>),
-        Product(Box<Expression>, Box<Expression>),
-        Quotient(Box<Expression>, Box<Expression>),
-        Negate(Box<Expression>),
 
-        Equals(Box<Expression>, Box<Expression>),
-        NotEquals(Box<Expression>, Box<Expression>),
-        Greater(Box<Expression>, Box<Expression>),
-        GreaterEq(Box<Expression>, Box<Expression>),
-        Less(Box<Expression>, Box<Expression>),
-        LessEq(Box<Expression>, Box<Expression>),
+        BinOp(Box<Expression>, BinOperator, Box<Expression>),
+        UnOp(UnOperator, Box<Expression>),
+    }
 
-        Not(Box<Expression>),
-        And(Box<Expression>, Box<Expression>),
-        Or(Box<Expression>, Box<Expression>),
-        BitNot(Box<Expression>),
-        BitAnd(Box<Expression>, Box<Expression>),
-        BitOr(Box<Expression>, Box<Expression>),
-        BitEor(Box<Expression>, Box<Expression>),
+    #[derive(Debug, Clone)]
+    pub enum BinOperator {
+        Add,
+        Subtract,
+        Multiply,
+        Divide,
+        Equals,
+        NotEquals,
+        Greater,
+        GreaterEq,
+        Less,
+        LessEq,
+        And,
+        Or,
+        BitAnd,
+        BitOr,
+        BitEor,
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum UnOperator {
+        Negate,
+        Not,
+        BitNot,
+        Deref,
     }
 
     #[derive(Debug, Clone)]
