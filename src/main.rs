@@ -1,7 +1,9 @@
 use clap::Parser;
 
 mod parser;
-use crate::parser::CodeParser;
+mod type_analysis;
+use self::parser::CodeParser;
+use self::type_analysis::TypeAnalyzer;
 
 #[derive(Parser, Debug)]
 #[clap(version = env!("CARGO_PKG_VERSION"))]
@@ -12,8 +14,9 @@ struct Arguments {
 
 fn main() {
     let args = Arguments::parse();
-    println!("{:?}", args);
     let parser = CodeParser::new(args.input);
-    let result = parser.parse();
-    println!("{:?}", result)
+    let parsed = parser.parse().unwrap();
+    let type_analyzer = TypeAnalyzer::new(parsed);
+    let typed = type_analyzer.analyze().unwrap();
+    println!("{:?}", typed);
 }

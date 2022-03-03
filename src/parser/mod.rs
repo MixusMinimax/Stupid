@@ -2,8 +2,10 @@ mod lexer;
 mod syntax;
 
 use self::lexer::Lexer;
-use self::syntax::{ParseResult, SyntaxParser};
+use self::syntax::SyntaxParser;
 use std::path::{Path, PathBuf};
+
+pub type ParseResult = self::syntax::ParseResult;
 
 pub struct CodeParser {
     source_path: PathBuf,
@@ -18,7 +20,7 @@ impl CodeParser {
 
     pub fn parse(&self) -> Result<ParseResult, String> {
         let lexed = Lexer::new(&self.source_path).read()?.lex()?;
-        println!("{}", lexed);
+        // println!("{}", lexed);
         let parsed = SyntaxParser::new()
             .parse(lexed.tokens)
             .map_err(|e| format!("{}", e))?;

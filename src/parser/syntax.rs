@@ -1,7 +1,7 @@
 use super::lexer::{Token, TokenEntry, TokenList};
 use duplicate::duplicate_item;
 use parsegen::parser;
-use std::{fmt::Display};
+use std::fmt::Display;
 
 type TokenAndEntry = (Token, TokenEntry);
 
@@ -455,7 +455,7 @@ mod ast {
         Deref(Box<Expression>),
 
         Member(Box<Expression>, String),
-        FunctionCall{
+        FunctionCall {
             function: Box<Expression>,
             // TODO: named arguments
             arguments: Vec<Expression>,
@@ -540,8 +540,8 @@ fn swap_assignment(left: ast::Expression, right: ast::Expression) -> ast::Expres
     match left {
         ast::Expression::Assignment(var, tree) => {
             ast::Expression::Assignment(var, Box::new(swap_assignment(*tree, right)))
-        },
-        e => ast::Expression::Assignment(Box::new(e), Box::new(right))
+        }
+        e => ast::Expression::Assignment(Box::new(e), Box::new(right)),
     }
 }
 
