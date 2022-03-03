@@ -1,7 +1,7 @@
 use super::lexer::{Token, TokenEntry, TokenList};
 use duplicate::duplicate_item;
 use parsegen::parser;
-use std::{fmt::Display, str::FromStr};
+use std::{fmt::Display, cell::Ref};
 
 type TokenAndEntry = (Token, TokenEntry);
 
@@ -13,9 +13,16 @@ parser! {
         "/" => (Token::Slash, <TokenEntry>),
         "%" => (Token::Percent, <TokenEntry>),
         "^" => (Token::Caret, <TokenEntry>),
+        "~" => (Token::Tilde, <TokenEntry>),
         "#" => (Token::Hash, <TokenEntry>),
+        "&" => (Token::Amp, <TokenEntry>),
+        "&&" => (Token::AmpAmp, <TokenEntry>),
+        "|" => (Token::Pipe, <TokenEntry>),
+        "||" => (Token::PipePipe, <TokenEntry>),
         "==" => (Token::EqEq, <TokenEntry>),
+        "!=" => (Token::NotEq, <TokenEntry>),
         "~=" => (Token::TildeEq, <TokenEntry>),
+        ":=" => (Token::ColonEq, <TokenEntry>),
         "<=" => (Token::LtEq, <TokenEntry>),
         ">=" => (Token::GtEq, <TokenEntry>),
         "<" => (Token::Lt, <TokenEntry>),
@@ -29,6 +36,7 @@ parser! {
         ";" => (Token::Semicolon, <TokenEntry>),
         ":" => (Token::Colon, <TokenEntry>),
         "," => (Token::Comma, <TokenEntry>),
+        "!" => (Token::Bang, <TokenEntry>),
         "." => (Token::Dot, <TokenEntry>),
         ".." => (Token::DotDot, <TokenEntry>),
         "..." => (Token::DotDotDot, <TokenEntry>),
@@ -37,6 +45,8 @@ parser! {
         "return" => (Token::Return, <TokenEntry>),
         "const" => (Token::Const, <TokenEntry>),
         "let" => (Token::Let, <TokenEntry>),
+        "if" => (Token::If, <TokenEntry>),
+        "else" => (Token::Else, <TokenEntry>),
         "var" => (Token::Var(<String>), <TokenEntry>),
         "int" => (Token::Integer(<String>), <TokenEntry>),
         "long" => (Token::Long(<String>), <TokenEntry>),
@@ -119,21 +129,93 @@ parser! {
             Ok(ast::Arg { name: name.0, arg_type: ast::Type::Named(t.0), default: None })
         })(),
 
-        <name:"var"> ":" <t:"var"> "=" <e:Expr> => (||{
+        <name:"var"> ":" <t:"var"> ":=" <e:Expr> => (||{
             Ok(ast::Arg { name: name.0, arg_type: ast::Type::Named(t.0), default: Some(Box::new(e?)) })
         })(),
 
-        <name:"var"> "=" <e:Expr> => (||{
+        <name:"var"> ":=" <e:Cond> => (||{
             Ok(ast::Arg { name: name.0, arg_type: ast::Type::Auto, default: Some(Box::new(e?)) })
         })(),
     };
 
     Expr: Result<ast::Expression, ParseError> = {
-        <l:Expr> "+" <r:Term> => (||{
+        "if" <a:Assignment> <b:Assignment> "else" <c:Assignment> => (||{
+            Ok(ast::Expression::IfElse{
+                condition: Box::new(a?),
+                then: Box::new(b?),
+                else_: Box::new(c?),
+            })
+        })(),
+
+        <a:Assignment> => a,
+    };
+
+    Assignment: Result<ast::Expression, ParseError> = {
+        <l:Assignment> "=" <r:Cond> => (||{
+            Ok(swap_assignment(l?, r?))
+        })(),
+
+        <c:Cond> => c,
+    };
+
+    Cond: Result<ast::Expression, ParseError> = {
+        <l:Cond> "&&" <r:Comparison> => (||{
+            Ok(ast::Expression::And(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Cond> "&" <r:Comparison> => (||{
+            Ok(ast::Expression::BitAnd(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Cond> "||" <r:Comparison> => (||{
+            Ok(ast::Expression::Or(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Cond> "|" <r:Comparison> => (||{
+            Ok(ast::Expression::BitOr(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Cond> "^" <r:Comparison> => (||{
+            Ok(ast::Expression::BitEor(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <c:Comparison> => c,
+    };
+
+    Comparison: Result<ast::Expression, ParseError> = {
+        <l:Comparison> "==" <r:Sum> => (||{
+            Ok(ast::Expression::Equals(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Comparison> "!=" <r:Sum> => (||{
+            Ok(ast::Expression::NotEquals(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Comparison> ">" <r:Sum> => (||{
+            Ok(ast::Expression::Greater(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Comparison> ">=" <r:Sum> => (||{
+            Ok(ast::Expression::GreaterEq(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Comparison> "<" <r:Sum> => (||{
+            Ok(ast::Expression::Less(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <l:Comparison> "<=" <r:Sum> => (||{
+            Ok(ast::Expression::LessEq(Box::new(l?), Box::new(r?)))
+        })(),
+
+        <s:Sum> => s,
+    };
+
+    Sum: Result<ast::Expression, ParseError> = {
+        <l:Sum> "+" <r:Term> => (||{
             Ok(ast::Expression::Sum(Box::new(l?), Box::new(r?)))
         })(),
 
-        <l:Expr> "-" <r:Term> => (||{
+        <l:Sum> "-" <r:Term> => (||{
             Ok(ast::Expression::Difference(Box::new(l?), Box::new(r?)))
         })(),
 
@@ -173,10 +255,25 @@ parser! {
             Ok(ast::Expression::Variable(var.0))
         })(),
 
-        "(" <e:Expr> ")" => e,
+        "(" <e:Expr> ")" => (||{
+            // This is needed later when flipping assignments around
+            Ok(ast::Expression::Bracketed(Box::new(e?)))
+        })(),
 
         "-" <f:Fac> => (||{
             Ok(ast::Expression::Negate(Box::new(f?)))
+        })(),
+
+        "!" <f:Fac> => (||{
+            Ok(ast::Expression::Not(Box::new(f?)))
+        })(),
+
+        "~" <f:Fac> => (||{
+            Ok(ast::Expression::BitNot(Box::new(f?)))
+        })(),
+
+        "*" <f:Fac> => (||{
+            Ok(ast::Expression::Deref(Box::new(f?)))
         })(),
 
         "{" <body:BlockBody> "}" => body,
@@ -186,16 +283,18 @@ parser! {
         => Ok(ast::Expression::Block { statements: vec![], last: None }),
 
         <mut block:BlockBody> <s:Statement> => (||{
+            let statement = s?;
+            if let ast::Statement::SemiColon = statement { return block }
             match block {
                 Ok(ast::Expression::Block {ref mut statements, last: _}) => {
-                    statements.push(s?);
+                    statements.push(statement);
                     block
                 },
                 e => e
             }
         })(),
 
-        <mut block:BlockBody> <e:Expr2> => (||{
+        <mut block:BlockBody> <e:Expr> => (||{
             match block {
                 Ok(ast::Expression::Block {statements: _, ref mut last}) => {
                     *last = Some(Box::new(e?));
@@ -206,25 +305,11 @@ parser! {
         })(),
     };
 
-    Expr2: Result<ast::Expression, ParseError> = {
-        <l:Expr2> "+" <r:Term> => (||{
-            Ok(ast::Expression::Sum(Box::new(l?), Box::new(r?)))
-        })(),
-
-        <l:Expr2> "-" <r:Term> => (||{
-            Ok(ast::Expression::Difference(Box::new(l?), Box::new(r?)))
-        })(),
-
-        <t:Term> => t,
-    };
-
     Statement: Result<ast::Statement, ParseError> = {
-        <e:Expr2> ";" => (||{
-            Ok(ast::Statement::ExpressionStatement(e?))
-        })(),
+        ";" => Ok(ast::Statement::SemiColon),
 
-        <name:"var"> "=" <e:Expr2> ";" => (||{
-            Ok(ast::Statement::Assignment { name: name.0, value: Box::new(e?) })
+        <e:Expr> ";" => (||{
+            Ok(ast::Statement::ExpressionStatement(e?))
         })(),
 
         "let" <name:"var"> ":" <t:"var"> ";" => (||{
@@ -235,7 +320,7 @@ parser! {
             })
         })(),
 
-        "let" <name:"var"> ":" <t:"var"> "=" <e:Expr3> ";" => (||{
+        "let" <name:"var"> ":" <t:"var"> "=" <e:Expr> ";" => (||{
             Ok(ast::Statement::VariableDeclaration {
                 name: name.0,
                 var_type: ast::Type::Named(t.0),
@@ -243,25 +328,20 @@ parser! {
             })
         })(),
 
-        "let" <name:"var"> "=" <e:Expr3> ";" => (||{
+        "let" <name:"var"> "=" <e:Expr> ";" => (||{
             Ok(ast::Statement::VariableDeclaration {
                 name: name.0,
                 var_type: ast::Type::Auto,
                 value: Some(Box::new(e?)),
             })
         })(),
-    };
 
-    Expr3: Result<ast::Expression, ParseError> = {
-        <l:Expr3> "+" <r:Term> => (||{
-            Ok(ast::Expression::Sum(Box::new(l?), Box::new(r?)))
+        "if" <condition:Assignment> <body:Assignment> ";" => (||{
+            Ok(ast::Statement::If{
+                condition: Box::new(condition?),
+                then: Box::new(body?)
+            })
         })(),
-
-        <l:Expr3> "-" <r:Term> => (||{
-            Ok(ast::Expression::Difference(Box::new(l?), Box::new(r?)))
-        })(),
-
-        <t:Term> => t,
     };
 }
 
@@ -328,10 +408,19 @@ mod ast {
 
     #[derive(Debug, Clone)]
     pub enum Expression {
+        Bracketed(Box<Expression>),
         Block {
             statements: Vec<Statement>,
             last: Option<Box<Expression>>,
         },
+        IfElse {
+            condition: Box<Expression>,
+            then: Box<Expression>,
+            else_: Box<Expression>,
+        },
+        Assignment(Box<Expression>, Box<Expression>),
+        Deref(Box<Expression>),
+
         Integer(i32),
         Long(i64),
         Float(f32),
@@ -342,23 +431,35 @@ mod ast {
         Product(Box<Expression>, Box<Expression>),
         Quotient(Box<Expression>, Box<Expression>),
         Negate(Box<Expression>),
+
+        Equals(Box<Expression>, Box<Expression>),
+        NotEquals(Box<Expression>, Box<Expression>),
+        Greater(Box<Expression>, Box<Expression>),
+        GreaterEq(Box<Expression>, Box<Expression>),
+        Less(Box<Expression>, Box<Expression>),
+        LessEq(Box<Expression>, Box<Expression>),
+
+        Not(Box<Expression>),
+        And(Box<Expression>, Box<Expression>),
+        Or(Box<Expression>, Box<Expression>),
+        BitNot(Box<Expression>),
+        BitAnd(Box<Expression>, Box<Expression>),
+        BitOr(Box<Expression>, Box<Expression>),
+        BitEor(Box<Expression>, Box<Expression>),
     }
 
     #[derive(Debug, Clone)]
     pub enum Statement {
+        SemiColon,
         VariableDeclaration {
             name: String,
             var_type: Type,
             value: Option<Box<Expression>>,
         },
         ExpressionStatement(Expression),
-        // I would like for assignments to be expressions, but that isn't possible with a CLR parser.
-        // This is because we need to see the assignment operator before knowing what's on the left of it.
-        // In other words, assignments are right-associative: a = b = c <=> a = (b = c)
-        // Once ParseGen has support for that, this will be changed.
-        Assignment {
-            name: String,
-            value: Box<Expression>,
+        If {
+            condition: Box<Expression>,
+            then: Box<Expression>,
         },
     }
 }
@@ -392,6 +493,15 @@ impl Parsable for T {
                 .parse()
                 .map_err(|err| ParseError::new(format!("{}", err), None))
         }
+    }
+}
+
+fn swap_assignment(left: ast::Expression, right: ast::Expression) -> ast::Expression {
+    match left {
+        ast::Expression::Assignment(var, tree) => {
+            ast::Expression::Assignment(var, Box::new(swap_assignment(*tree, right)))
+        },
+        e => ast::Expression::Assignment(Box::new(e), Box::new(right))
     }
 }
 
