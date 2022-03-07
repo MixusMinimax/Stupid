@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["-i", "samples/simple.st"],
+            "args": ["samples/simple.st"],
             "cwd": "${workspaceFolder}"
         },
         {

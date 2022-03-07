@@ -1,4 +1,6 @@
 use crate::parser::ParseResult;
+
+use self::types::TypeAnalysisError;
 pub mod program;
 mod types;
 
@@ -30,7 +32,10 @@ impl TypeAnalyzer {
         //   4. Potentially implicit conversion for
         //      specific variable declarations or function calls
         let mut program = program::convert(&self.parsed).map_err(|e| format!("{}", e))?;
-        types::analyze_program(&mut program);
+        types::analyze_program(&mut program).or_else::<String, _>(|e| {
+            println!("{}", e);
+            Ok(())
+        })?;
         Ok(TypeResult { program })
     }
 }

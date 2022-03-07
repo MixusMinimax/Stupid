@@ -17,30 +17,30 @@ pub mod analyzed {
     #[derive(Debug)]
     pub struct Program {
         pub types: HashMap<String, Type>,
-        pub constants: HashMap<String, RefCell<Constant>>,
-        pub procedures: HashMap<String, RefCell<Procedure>>,
-    }
-
-    #[derive(Debug)]
-    pub struct Constant {
-        pub name: String,
-        pub type_: Option<String>,
-        pub value: Box<Expression>,
+        pub constants: HashMap<String, Rc<RefCell<Declaration>>>,
+        pub procedures: HashMap<String, Rc<RefCell<Procedure>>>,
     }
 
     #[derive(Debug)]
     pub struct Procedure {
         pub name: String,
         pub return_type: Option<String>,
-        pub arguments: HashMap<String, Rc<Argument>>,
+        pub arguments: HashMap<String, Rc<RefCell<Declaration>>>,
         pub return_value: Box<Expression>,
     }
 
     #[derive(Debug)]
-    pub struct Argument {
-        pub name: String,
-        pub type_: String,
-        pub default: Option<i32>,
+    pub enum Declaration {
+        Typed {
+            name: String,
+            type_: String,
+            value: Option<Box<Expression>>,
+        },
+        UnTyped {
+            name: String,
+            type_: Option<String>,
+            value: Box<Expression>,
+        },
     }
 
     #[derive(Debug)]
@@ -85,28 +85,64 @@ pub mod analyzed {
         Long(i64),
         Float(f32),
         Double(f64),
+
+        BinOp(Box<Expression>, super::ast::BinOperator, Box<Expression>),
+        UnOp(super::ast::UnOperator, Box<Expression>),
     }
 }
+
+// conversion
 
 #[derive(Debug, Clone)]
 pub struct AstConversionError {
     message: String,
 }
 
+type Scope = HashMap<String, Rc<RefCell<analyzed::Declaration>>>;
+
 pub fn convert(parsed: &ParseResult) -> Result<analyzed::Program, AstConversionError> {
     let types = scan_types(&parsed.root)?;
     let mut constants = HashMap::new();
     let mut procedures = HashMap::new();
 
+    // Create placeholders to populate root scope.
     for ref constant in parsed.root.constants.iter() {
         constants.insert(
             constant.name.clone(),
-            RefCell::new(convert_constant(constant)?),
+            Rc::new(RefCell::new(analyzed::Declaration::UnTyped {
+                name: constant.name.clone(),
+                type_: None,
+                value: Box::new(analyzed::Expression::int(0)),
+            })),
         );
     }
 
     for ref proc in parsed.root.functions.iter() {
-        procedures.insert(proc.name.clone(), RefCell::new(convert_procedure(proc)?));
+        procedures.insert(
+            proc.name.clone(),
+            Rc::new(RefCell::new(analyzed::Procedure {
+                name: proc.name.clone(),
+                return_type: None,
+                arguments: HashMap::new(),
+                return_value: Box::new(analyzed::Expression::int(0)),
+            })),
+        );
+    }
+
+    let mut scopes = vec![constants.clone()];
+
+    for ref constant in parsed.root.constants.iter() {
+        constants.insert(
+            constant.name.clone(),
+            Rc::new(RefCell::new(convert_constant(constant, &mut scopes)?)),
+        );
+    }
+
+    for ref proc in parsed.root.functions.iter() {
+        procedures.insert(
+            proc.name.clone(),
+            Rc::new(RefCell::new(convert_procedure(proc, &mut scopes)?)),
+        );
     }
 
     Ok(analyzed::Program {
@@ -116,9 +152,7 @@ pub fn convert(parsed: &ParseResult) -> Result<analyzed::Program, AstConversionE
     })
 }
 
-// conversion
-
-fn scan_types(root: &ast::Root) -> Result<HashMap<String, analyzed::Type>, AstConversionError> {
+fn scan_types(_root: &ast::Root) -> Result<HashMap<String, analyzed::Type>, AstConversionError> {
     let mut types = HashMap::new();
     types.insert(
         "int".to_string(),
@@ -152,32 +186,81 @@ fn scan_types(root: &ast::Root) -> Result<HashMap<String, analyzed::Type>, AstCo
     Ok(types)
 }
 
-fn convert_constant(constant: &ast::Const) -> Result<analyzed::Constant, AstConversionError> {
-    Ok(analyzed::Constant {
+fn convert_constant(
+    constant: &ast::Const,
+    scopes: &mut Vec<Scope>,
+) -> Result<analyzed::Declaration, AstConversionError> {
+    Ok(analyzed::Declaration::UnTyped {
         name: constant.name.clone(),
         type_: None,
-        value: Box::new(convert_expression(&constant.value)?),
+        value: Box::new(convert_expression(&constant.value, scopes)?),
     })
 }
 
-fn convert_procedure(procedure: &ast::Proc) -> Result<analyzed::Procedure, AstConversionError> {
+fn convert_procedure(
+    procedure: &ast::Proc,
+    scopes: &mut Vec<Scope>,
+) -> Result<analyzed::Procedure, AstConversionError> {
+    let mut arguments = HashMap::new();
+    for ref argument in &procedure.arguments {
+        arguments.insert(
+            argument.name.clone(),
+            match &argument.arg_type {
+                ast::Type::Named(type_) => Rc::new(RefCell::new(analyzed::Declaration::Typed {
+                    name: argument.name.clone(),
+                    type_: type_.clone(),
+                    value: match &argument.default {
+                        Some(val) => Some(Box::new(convert_expression(&*val, scopes)?)),
+                        _ => None,
+                    },
+                })),
+                _ => {
+                    return Err(AstConversionError::new(
+                        "Non-specific argument types not supported.",
+                    ))
+                }
+            },
+        );
+    }
+
     Ok(analyzed::Procedure {
         name: procedure.name.clone(),
-        arguments: HashMap::new(),
+        arguments,
         return_type: match &procedure.return_type {
             ast::Type::Named(ref name) => Some(name.clone()),
             ast::Type::Auto => None,
         },
-        return_value: Box::new(convert_expression(&procedure.value)?),
+        return_value: Box::new(convert_expression(&procedure.value, scopes)?),
     })
 }
 
-fn convert_expression(expr: &ast::Expression) -> Result<analyzed::Expression, AstConversionError> {
+fn convert_expression(
+    expr: &ast::Expression,
+    scopes: &mut Vec<Scope>,
+) -> Result<analyzed::Expression, AstConversionError> {
+    use ast::Expression::*;
     Ok(match &expr {
-        ast::Expression::Integer(value) => analyzed::Expression::int(*value),
-        ast::Expression::Long(value) => analyzed::Expression::long(*value),
-        ast::Expression::Float(value) => analyzed::Expression::float(*value),
-        ast::Expression::Double(value) => analyzed::Expression::double(*value),
+        Integer(value) => analyzed::Expression::int(*value),
+        Long(value) => analyzed::Expression::long(*value),
+        Float(value) => analyzed::Expression::float(*value),
+        Double(value) => analyzed::Expression::double(*value),
+
+        BinOp(left, op, right) => analyzed::Expression {
+            type_: None,
+            value: analyzed::ExpressionValue::BinOp(
+                Box::new(convert_expression(left, scopes)?),
+                op.clone(),
+                Box::new(convert_expression(right, scopes)?),
+            ),
+        },
+        UnOp(op, right) => analyzed::Expression {
+            type_: None,
+            value: analyzed::ExpressionValue::UnOp(
+                op.clone(),
+                Box::new(convert_expression(right, scopes)?),
+            ),
+        },
+
         _ => return Err(AstConversionError::new("Not implemented!")),
     })
 }
