@@ -384,7 +384,7 @@ parser! {
 
 #[derive(Debug)]
 pub struct ParseResult {
-    root: ast::Root,
+    pub root: ast::Root,
 }
 
 pub struct SyntaxParser {}
@@ -403,7 +403,7 @@ impl SyntaxParser {
     }
 }
 
-mod ast {
+pub mod ast {
 
     #[derive(Debug, Clone)]
     pub struct Root {
@@ -564,7 +564,7 @@ pub struct ParseError {
 
 impl ParseError {
     pub fn new<S: AsRef<str>>(message: S, token: Option<TokenEntry>) -> Self {
-        ParseError {
+        Self {
             message: message.as_ref().to_string(),
             token,
         }

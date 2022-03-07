@@ -1,4 +1,6 @@
-use super::parser::ParseResult;
+use crate::parser::ParseResult;
+pub mod program;
+mod types;
 
 #[derive(Debug)]
 pub struct TypeAnalyzer {
@@ -6,10 +8,9 @@ pub struct TypeAnalyzer {
 }
 
 #[derive(Debug)]
-pub struct TypeResult {}
-
-#[derive(Debug)]
-pub struct TypeError {}
+pub struct TypeResult {
+    program: program::analyzed::Program,
+}
 
 impl TypeAnalyzer {
     pub fn new(parsed: ParseResult) -> Self {
@@ -28,6 +29,8 @@ impl TypeAnalyzer {
         //   3. Apply expression type to untyped variable declarations
         //   4. Potentially implicit conversion for
         //      specific variable declarations or function calls
-        Ok(TypeResult {})
+        let mut program = program::convert(&self.parsed).map_err(|e| format!("{}", e))?;
+        types::analyze_program(&mut program);
+        Ok(TypeResult { program })
     }
 }

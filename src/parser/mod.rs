@@ -1,5 +1,5 @@
 mod lexer;
-mod syntax;
+pub mod syntax;
 
 use self::lexer::Lexer;
 use self::syntax::SyntaxParser;
