@@ -85,6 +85,10 @@ fn analyze_expr(expression: &mut analyzed::Expression) -> Result<String, ()> {
         BinOp(left, _, right) => common_type(analyze_expr(&mut *left)?, analyze_expr(&mut *right)?),
         UnOp(_, expr) => Some(analyze_expr(&mut *expr)?),
         Variable(decl) => Some(analyze_decl(decl.clone())?),
+        Block { last, .. } => match last {
+            Some(expr) => Some(analyze_expr(&mut **expr)?),
+            None => Some("void".to_string()),
+        },
         _ => None,
     };
     expression.type_ = type_.clone();

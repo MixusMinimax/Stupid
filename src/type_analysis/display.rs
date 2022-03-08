@@ -1,9 +1,5 @@
-use std::{
-    borrow::Borrow,
-    fmt::{Display, Write},
-};
-
 use crate::util::MyInto;
+use std::fmt::{Display, Write};
 
 mod analyzed {
     pub use crate::type_analysis::program::analyzed::*;
