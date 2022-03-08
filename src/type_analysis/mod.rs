@@ -1,6 +1,6 @@
 use crate::parser::ParseResult;
 
-use self::types::TypeAnalysisError;
+pub mod display;
 pub mod program;
 mod types;
 
@@ -11,7 +11,7 @@ pub struct TypeAnalyzer {
 
 #[derive(Debug)]
 pub struct TypeResult {
-    program: program::analyzed::Program,
+    pub program: program::analyzed::Program,
 }
 
 impl TypeAnalyzer {

@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, cell::RefCell, fmt::Display, rc::Rc};
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 mod analyzed {
     pub use crate::type_analysis::program::analyzed::*;
@@ -12,6 +12,9 @@ pub fn analyze_program(program: &mut analyzed::Program) -> Result<(), TypeAnalys
     let mut analyzed_count: i32;
     let mut failed_count: i32;
 
+    // Firstly, analyze types of procedures and constants,
+    // which means that expressions not required for
+    // the return type for functions are ignored.
     loop {
         analyzed_count = 0;
         failed_count = 0;
@@ -42,7 +45,10 @@ pub fn analyze_program(program: &mut analyzed::Program) -> Result<(), TypeAnalys
         if analyzed_count == 0 {
             break Err(TypeAnalysisError::new("Some types could not be deduced"));
         }
-    }
+    }?;
+    // Now, we can fully analyze constants and procedures, including irrelevant variables.
+    // TODO: analyze not needed thingies
+    Ok(())
 }
 
 fn analyze_decl(declaration: Rc<RefCell<analyzed::Declaration>>) -> Result<String, ()> {

@@ -1,3 +1,4 @@
+pub mod display;
 mod lexer;
 pub mod syntax;
 

@@ -1,12 +1,13 @@
 use crate::parser::ParseResult;
-use std::{cell::RefCell, collections::HashMap, fmt::Display, ops::Index, rc::Rc};
+use std::{borrow::Borrow, cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
 
 mod ast {
     pub use crate::parser::syntax::ast::*;
 }
 
 pub mod analyzed {
-    use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
+    use crate::util::MyInto;
+    use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
     #[derive(Debug, Clone)]
     pub struct Type {
@@ -41,6 +42,21 @@ pub mod analyzed {
             type_: Option<String>,
             value: Box<Expression>,
         },
+    }
+
+    impl Declaration {
+        pub fn get_name(&self) -> &str {
+            match self {
+                Self::Typed { name, .. } | Self::UnTyped { name, .. } => name.as_str(),
+            }
+        }
+
+        pub fn get(&self) -> (&String, Option<&String>, Option<&Box<Expression>>) {
+            match self {
+                Self::Typed { name, type_, value } => (name, Some(type_), MyInto::into(value)),
+                Self::UnTyped { name, type_, value } => (name, MyInto::into(type_), Some(value)),
+            }
+        }
     }
 
     #[derive(Debug)]
@@ -89,6 +105,17 @@ pub mod analyzed {
 
         BinOp(Box<Expression>, super::ast::BinOperator, Box<Expression>),
         UnOp(super::ast::UnOperator, Box<Expression>),
+
+        Block {
+            statements: Vec<Statement>,
+            last: Option<Box<Expression>>,
+        },
+    }
+
+    #[derive(Debug)]
+    pub enum Statement {
+        ExpressionStatement(Expression),
+        VariableDeclaration(Rc<RefCell<Declaration>>),
     }
 }
 
@@ -226,10 +253,9 @@ fn convert_procedure(
             },
         );
     }
-
     scopes.push(arguments.clone());
 
-    Ok(analyzed::Procedure {
+    let ret = analyzed::Procedure {
         name: procedure.name.clone(),
         arguments,
         return_type: match &procedure.return_type {
@@ -237,7 +263,9 @@ fn convert_procedure(
             ast::Type::Auto => None,
         },
         return_value: Box::new(convert_expression(&procedure.value, scopes)?),
-    })
+    };
+    scopes.pop();
+    Ok(ret)
 }
 
 fn convert_expression(
@@ -296,7 +324,76 @@ fn convert_expression(
             }
         }
 
-        _ => return Err(AstConversionError::new("Not implemented!")),
+        Block { statements, last } => {
+            scopes.push(HashMap::new());
+            let mut statements_converted = vec![];
+            for s in statements.iter() {
+                if let Some(statement) = convert_statement(s, scopes)? {
+                    if let analyzed::Statement::VariableDeclaration(decl) = &statement {
+                        let scope = scopes.last_mut().unwrap();
+                        let d = &*(**decl).borrow();
+                        scope.insert(d.get_name().to_string(), decl.clone());
+                    }
+                    statements_converted.push(statement);
+                }
+            }
+            let l = match last {
+                Some(expr) => Some(Box::new(convert_expression(expr, scopes)?)),
+                None => None,
+            };
+            scopes.pop();
+            analyzed::Expression {
+                type_: None,
+                value: analyzed::ExpressionValue::Block {
+                    statements: statements_converted,
+                    last: l,
+                },
+            }
+        }
+
+        _ => todo!(),
+    })
+}
+
+fn convert_statement(
+    statement: &ast::Statement,
+    scopes: &mut Vec<Scope>,
+) -> Result<Option<analyzed::Statement>, AstConversionError> {
+    use ast::Statement::*;
+    Ok(match statement {
+        SemiColon => None,
+        VariableDeclaration {
+            name,
+            var_type,
+            value,
+        } => Some(analyzed::Statement::VariableDeclaration(Rc::new(
+            RefCell::new(match var_type {
+                ast::Type::Named(type_) => analyzed::Declaration::Typed {
+                    name: name.clone(),
+                    type_: type_.clone(),
+                    value: match value {
+                        Some(v) => Some(Box::new(convert_expression(&**v, scopes)?)),
+                        None => None,
+                    },
+                },
+                ast::Type::Auto => analyzed::Declaration::UnTyped {
+                    name: name.clone(),
+                    type_: None,
+                    value: match value {
+                        Some(v) => Box::new(convert_expression(&**v, scopes)?),
+                        None => {
+                            return Err(AstConversionError::new(
+                                "Untyped variables require initialization value.",
+                            ))
+                        }
+                    },
+                },
+            }),
+        ))),
+        ExpressionStatement(expr) => Some(analyzed::Statement::ExpressionStatement(
+            convert_expression(expr, scopes)?,
+        )),
+        If { .. } => todo!(),
     })
 }
 

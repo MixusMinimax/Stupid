@@ -1,9 +1,9 @@
-use clap::Parser;
-
 mod parser;
 mod type_analysis;
+mod util;
 use self::parser::CodeParser;
 use self::type_analysis::TypeAnalyzer;
+use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[clap(version = env!("CARGO_PKG_VERSION"))]
@@ -18,5 +18,5 @@ fn main() {
     let parsed = parser.parse().unwrap();
     let type_analyzer = TypeAnalyzer::new(parsed);
     let typed = type_analyzer.analyze().unwrap();
-    println!("{:?}", typed);
+    println!("\n{}", typed.program);
 }
