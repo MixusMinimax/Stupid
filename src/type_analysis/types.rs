@@ -45,18 +45,22 @@ pub fn analyze_program(program: &mut analyzed::Program) -> Result<(), TypeAnalys
     }
 }
 
-fn analyze_decl(declaration: Rc<RefCell<analyzed::Declaration>>) -> Result<(), ()> {
+fn analyze_decl(declaration: Rc<RefCell<analyzed::Declaration>>) -> Result<String, ()> {
     match &mut *(*declaration).borrow_mut() {
         analyzed::Declaration::UnTyped {
             ref mut type_,
-            value,
+            ref mut value,
             ..
-        } => {
-            *type_ = Some(analyze_expr(&mut *value)?);
-        }
-        _ => (),
+        } => match type_ {
+            Some(name) => Ok(name.clone()),
+            None => {
+                let t = analyze_expr(&mut **value)?;
+                *type_ = Some(t.clone());
+                Ok(t)
+            }
+        },
+        analyzed::Declaration::Typed { ref type_, .. } => Ok(type_.clone()),
     }
-    Ok(())
 }
 
 fn analyze_proc(procedure: Rc<RefCell<analyzed::Procedure>>) -> Result<(), ()> {
@@ -72,10 +76,9 @@ fn analyze_expr(expression: &mut analyzed::Expression) -> Result<String, ()> {
         return Ok(name.clone());
     }
     let type_ = match &mut expression.value {
-        BinOp(ref mut left, _, ref mut right) => {
-            common_type(analyze_expr(&mut *left)?, analyze_expr(&mut *right)?)
-        }
-        UnOp(_, ref mut expr) => Some(analyze_expr(&mut *expr)?),
+        BinOp(left, _, right) => common_type(analyze_expr(&mut *left)?, analyze_expr(&mut *right)?),
+        UnOp(_, expr) => Some(analyze_expr(&mut *expr)?),
+        Variable(decl) => Some(analyze_decl(decl.clone())?),
         _ => None,
     };
     expression.type_ = type_.clone();

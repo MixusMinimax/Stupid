@@ -172,24 +172,36 @@ lexer! {
             lexer.return_(Token::Long(s))
         },
 
-        ($digit+ ('.' $digit*)? | '.' $digit+) ('e' | 'E') ('+'|'-')? $digit+ ('f' | 'F')? => |lexer| {
+        ($digit+ ('.' $digit*)? | '.' $digit+) ('e' | 'E') ('+'|'-')? $digit+ ('f' | 'F') => |lexer| {
             let match_ = lexer.match_();
-            lexer.return_(Token::Float(match_.to_string()))
+            let mut s = match_.to_string();
+            s.pop();
+            lexer.return_(Token::Float(s))
         },
 
-        ($digit+ ('.' $digit*)? | '.' $digit+) ('e' | 'E') ('+'|'-')? $digit+ ('d' | 'D') => |lexer| {
+        ($digit+ ('.' $digit*)? | '.' $digit+) ('e' | 'E') ('+'|'-')? $digit+ ('d' | 'D')? => |lexer| {
             let match_ = lexer.match_();
-            lexer.return_(Token::Double(match_.to_string()))
+            let mut s = match_.to_string();
+            if s.chars().last().unwrap() == 'f' || s.chars().last().unwrap() == 'F' {
+                s.pop();
+            }
+            lexer.return_(Token::Double(s))
         },
 
-        ($digit+ '.' $digit* | $digit* '.' $digit+) ('f' | 'F')? => |lexer| {
+        ($digit+ '.' $digit* | $digit* '.' $digit+) ('f' | 'F') => |lexer| {
             let match_ = lexer.match_();
-            lexer.return_(Token::Float(match_.to_string()))
+            let mut s = match_.to_string();
+            s.pop();
+            lexer.return_(Token::Float(s))
         },
 
-        ($digit+ '.' $digit* | $digit* '.' $digit+) ('d' | 'D') => |lexer| {
+        ($digit+ '.' $digit* | $digit* '.' $digit+) ('d' | 'D')? => |lexer| {
             let match_ = lexer.match_();
-            lexer.return_(Token::Double(match_.to_string()))
+            let mut s = match_.to_string();
+            if s.chars().last().unwrap() == 'f' || s.chars().last().unwrap() == 'F' {
+                s.pop();
+            }
+            lexer.return_(Token::Double(s))
         },
 
         '"' => |lexer| {

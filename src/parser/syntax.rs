@@ -133,7 +133,7 @@ parser! {
             Ok(ast::Arg { name: name.0, arg_type: ast::Type::Named(t.0), default: Some(Box::new(e?)) })
         })(),
 
-        <name:"var"> ":=" <e:Cond> => (||{
+        <name:"var"> ":=" <e:Expr> => (||{
             Ok(ast::Arg { name: name.0, arg_type: ast::Type::Auto, default: Some(Box::new(e?)) })
         })(),
     };
@@ -524,7 +524,7 @@ impl Parsable for T {
     fn parse(literal: &String) -> Result<Self, ParseError> {
         literal
             .parse()
-            .map_err(|err| ParseError::new(format!("{}", err), None))
+            .map_err(|err| ParseError::new(format!("{} ({})", err, literal), None))
     }
 }
 

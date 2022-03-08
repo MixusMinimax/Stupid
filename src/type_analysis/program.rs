@@ -1,5 +1,5 @@
 use crate::parser::ParseResult;
-use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Display, ops::Index, rc::Rc};
 
 mod ast {
     pub use crate::parser::syntax::ast::*;
@@ -85,6 +85,7 @@ pub mod analyzed {
         Long(i64),
         Float(f32),
         Double(f64),
+        Variable(Rc<RefCell<Declaration>>),
 
         BinOp(Box<Expression>, super::ast::BinOperator, Box<Expression>),
         UnOp(super::ast::UnOperator, Box<Expression>),
@@ -131,18 +132,14 @@ pub fn convert(parsed: &ParseResult) -> Result<analyzed::Program, AstConversionE
 
     let mut scopes = vec![constants.clone()];
 
-    for ref constant in parsed.root.constants.iter() {
-        constants.insert(
-            constant.name.clone(),
-            Rc::new(RefCell::new(convert_constant(constant, &mut scopes)?)),
-        );
+    for ref const_ in parsed.root.constants.iter() {
+        let constant = convert_constant(const_, &mut scopes)?;
+        *(*constants[const_.name.as_str()]).borrow_mut() = constant;
     }
 
     for ref proc in parsed.root.functions.iter() {
-        procedures.insert(
-            proc.name.clone(),
-            Rc::new(RefCell::new(convert_procedure(proc, &mut scopes)?)),
-        );
+        let procedure = convert_procedure(proc, &mut scopes)?;
+        *(*procedures[proc.name.as_str()]).borrow_mut() = procedure;
     }
 
     Ok(analyzed::Program {
@@ -214,14 +211,23 @@ fn convert_procedure(
                         _ => None,
                     },
                 })),
-                _ => {
-                    return Err(AstConversionError::new(
-                        "Non-specific argument types not supported.",
-                    ))
-                }
+                ast::Type::Auto => Rc::new(RefCell::new(analyzed::Declaration::UnTyped {
+                    name: argument.name.clone(),
+                    type_: None,
+                    value: match &argument.default {
+                        Some(val) => Box::new(convert_expression(&*val, scopes)?),
+                        _ => {
+                            return Err(AstConversionError::new(
+                                "Untyped Arguments require default value.",
+                            ))
+                        }
+                    },
+                })),
             },
         );
     }
+
+    scopes.push(arguments.clone());
 
     Ok(analyzed::Procedure {
         name: procedure.name.clone(),
@@ -260,6 +266,35 @@ fn convert_expression(
                 Box::new(convert_expression(right, scopes)?),
             ),
         },
+
+        Bracketed(expr) => convert_expression(expr, scopes)?,
+
+        Variable(name) => {
+            let mut scope_iter = scopes.iter().rev();
+            match {
+                loop {
+                    match scope_iter.next() {
+                        Some(scope) => {
+                            if let Some(decl) = scope.get(name.as_str()) {
+                                break Some(decl.clone());
+                            }
+                        }
+                        None => break None,
+                    }
+                }
+            } {
+                Some(decl) => analyzed::Expression {
+                    type_: None,
+                    value: analyzed::ExpressionValue::Variable(decl),
+                },
+                None => {
+                    return Err(AstConversionError::new(format!(
+                        "Variable \"{}\" not found!",
+                        name.as_str()
+                    )))
+                }
+            }
+        }
 
         _ => return Err(AstConversionError::new("Not implemented!")),
     })
