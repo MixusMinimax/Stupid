@@ -182,7 +182,7 @@ lexer! {
         ($digit+ ('.' $digit*)? | '.' $digit+) ('e' | 'E') ('+'|'-')? $digit+ ('d' | 'D')? => |lexer| {
             let match_ = lexer.match_();
             let mut s = match_.to_string();
-            if s.chars().last().unwrap() == 'f' || s.chars().last().unwrap() == 'F' {
+            if s.chars().last().unwrap() == 'd' || s.chars().last().unwrap() == 'D' {
                 s.pop();
             }
             lexer.return_(Token::Double(s))
@@ -198,7 +198,7 @@ lexer! {
         ($digit+ '.' $digit* | $digit* '.' $digit+) ('d' | 'D')? => |lexer| {
             let match_ = lexer.match_();
             let mut s = match_.to_string();
-            if s.chars().last().unwrap() == 'f' || s.chars().last().unwrap() == 'F' {
+            if s.chars().last().unwrap() == 'd' || s.chars().last().unwrap() == 'D' {
                 s.pop();
             }
             lexer.return_(Token::Double(s))

@@ -109,7 +109,7 @@ impl Display for analyzed::Statement {
         use analyzed::Statement::*;
         let indent = f.width().unwrap_or(0);
         match self {
-            ExpressionStatement(expr) => write!(f, "{}{:>indent$};", expr, indent = indent),
+            ExpressionStatement(expr) => write!(f, "{:>indent$};", expr, indent = indent),
             VariableDeclaration(decl) => {
                 let d = &*(**decl).borrow();
                 let (name, type_, value) = d.get();
