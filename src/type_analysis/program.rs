@@ -30,6 +30,8 @@ pub mod analyzed {
         pub return_type: Option<String>,
         pub arguments: IndexMap<String, Rc<RefCell<Declaration>>>,
         pub return_value: Box<Expression>,
+        pub arg_count: i32,
+        pub arg_count_required: i32,
     }
 
     #[derive(Debug)]
@@ -112,6 +114,12 @@ pub mod analyzed {
             statements: Vec<Statement>,
             last: Option<Box<Expression>>,
         },
+        /*
+        FunctionCall {
+            procedure: Rc<RefCell<Procedure>>,
+            arguments: Vec<Expression>,
+        },
+        */
     }
 
     #[derive(Debug)]
@@ -155,6 +163,8 @@ pub fn convert(parsed: &ParseResult) -> Result<analyzed::Program, AstConversionE
                 return_type: None,
                 arguments: IndexMap::new(),
                 return_value: Box::new(analyzed::Expression::int(0)),
+                arg_count: 0,
+                arg_count_required: 0,
             })),
         );
     }
@@ -235,7 +245,22 @@ fn convert_procedure(
     scopes: &mut Vec<Scope>,
 ) -> Result<analyzed::Procedure, AstConversionError> {
     let mut arguments = IndexMap::new();
+    let mut found_default_argument = false;
+    let mut arg_count = 0;
+    let mut arg_count_required = 0;
+
     for ref argument in &procedure.arguments {
+        arg_count += 1;
+        if found_default_argument && argument.default.is_none() {
+            return Err(AstConversionError::new(
+                "Argument: Missing default value after encountering an argument that has one",
+            ));
+        }
+        if argument.default.is_some() {
+            found_default_argument = true;
+        } else {
+            arg_count_required += 1;
+        }
         arguments.insert(
             argument.name.clone(),
             match &argument.arg_type {
@@ -272,6 +297,8 @@ fn convert_procedure(
             ast::Type::Auto => None,
         },
         return_value: Box::new(convert_expression(&procedure.value, scopes)?),
+        arg_count,
+        arg_count_required,
     };
     scopes.pop();
     Ok(ret)
