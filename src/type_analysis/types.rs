@@ -23,7 +23,7 @@ pub fn analyze_program(program: &mut analyzed::Program) -> Result<(), TypeAnalys
             if let analyzed::Declaration::UnTyped { type_: Some(_), .. } = &*(*constant).borrow() {
                 continue;
             }
-            match analyze_decl(constant.clone()) {
+            match analyze_decl(constant.clone(), false) {
                 Ok(_) => analyzed_count = analyzed_count + 1,
                 Err(_) => failed_count = failed_count + 1,
             };
@@ -33,7 +33,7 @@ pub fn analyze_program(program: &mut analyzed::Program) -> Result<(), TypeAnalys
             if let Some(_) = (*procedure).borrow().return_type {
                 continue;
             }
-            match analyze_proc(procedure.clone()) {
+            match analyze_proc(procedure.clone(), false) {
                 Ok(_) => analyzed_count = analyzed_count + 1,
                 Err(_) => failed_count = failed_count + 1,
             };
@@ -47,46 +47,82 @@ pub fn analyze_program(program: &mut analyzed::Program) -> Result<(), TypeAnalys
         }
     }?;
     // Now, we can fully analyze constants and procedures, including irrelevant variables.
-    // TODO: analyze not needed thingies
+    for (_, constant) in &program.constants {
+        analyze_decl(constant.clone(), true)
+            .map_err(|()| TypeAnalysisError::new("Could not fully analyze constant"))?;
+    }
+
+    for (_, procedure) in &program.procedures {
+        analyze_proc(procedure.clone(), true)
+            .map_err(|()| TypeAnalysisError::new("Could not fully analyze procedure"))?;
+    }
     Ok(())
 }
 
-fn analyze_decl(declaration: Rc<RefCell<analyzed::Declaration>>) -> Result<String, ()> {
+fn analyze_decl(
+    declaration: Rc<RefCell<analyzed::Declaration>>,
+    analyze_all: bool,
+) -> Result<String, ()> {
     match &mut *(*declaration).borrow_mut() {
-        analyzed::Declaration::UnTyped {
-            ref mut type_,
-            ref mut value,
-            ..
-        } => match type_ {
-            Some(name) => Ok(name.clone()),
-            None => {
-                let t = analyze_expr(&mut **value)?;
+        analyzed::Declaration::UnTyped { type_, value, .. } => match type_ {
+            Some(name) if !analyze_all => Ok(name.clone()),
+            _ => {
+                let t = analyze_expr(&mut **value, analyze_all)?;
                 *type_ = Some(t.clone());
                 Ok(t)
             }
         },
-        analyzed::Declaration::Typed { ref type_, .. } => Ok(type_.clone()),
+        analyzed::Declaration::Typed { type_, value, .. } => {
+            if analyze_all {
+                if let Some(v) = value {
+                    analyze_expr(&mut **v, analyze_all)?;
+                }
+            }
+            Ok(type_.clone())
+        }
     }
 }
 
-fn analyze_proc(procedure: Rc<RefCell<analyzed::Procedure>>) -> Result<(), ()> {
-    let return_type = Some(analyze_expr(&mut *(*procedure).borrow_mut().return_value)?);
+fn analyze_proc(procedure: Rc<RefCell<analyzed::Procedure>>, analyze_all: bool) -> Result<(), ()> {
+    if analyze_all {
+        // Extract argument rcs so that proc is not borrowed while analyzing arguments.
+        // In theory, a function can be used as a default argument for an argument of itself.
+        let arguments: Vec<_> = (*procedure)
+            .borrow()
+            .arguments
+            .values()
+            .map(|rc| rc.clone())
+            .collect();
+        for argument in arguments {
+            analyze_decl(argument, analyze_all)?;
+        }
+    }
+    let return_type = Some(analyze_expr(
+        &mut *(*procedure).borrow_mut().return_value,
+        analyze_all,
+    )?);
     (*procedure).borrow_mut().return_type = return_type;
     Ok(())
 }
 
-fn analyze_expr(expression: &mut analyzed::Expression) -> Result<String, ()> {
+fn analyze_expr(expression: &mut analyzed::Expression, analyze_all: bool) -> Result<String, ()> {
     use analyzed::ExpressionValue::*;
 
-    if let Some(ref name) = expression.type_ {
-        return Ok(name.clone());
+    if !analyze_all {
+        if let Some(ref name) = expression.type_ {
+            return Ok(name.clone());
+        }
     }
     let type_ = match &mut expression.value {
-        BinOp(left, _, right) => common_type(analyze_expr(&mut *left)?, analyze_expr(&mut *right)?),
-        UnOp(_, expr) => Some(analyze_expr(&mut *expr)?),
-        Variable(decl) => Some(analyze_decl(decl.clone())?),
+        Integer(_) | Long(_) | Float(_) | Double(_) => return expression.type_.clone().ok_or(()),
+        BinOp(left, _, right) => common_type(
+            analyze_expr(&mut *left, analyze_all)?,
+            analyze_expr(&mut *right, analyze_all)?,
+        ),
+        UnOp(_, expr) => Some(analyze_expr(&mut *expr, analyze_all)?),
+        Variable(decl) => Some(analyze_decl(decl.clone(), analyze_all)?),
         Block { last, .. } => match last {
-            Some(expr) => Some(analyze_expr(&mut **expr)?),
+            Some(expr) => Some(analyze_expr(&mut **expr, analyze_all)?),
             None => Some("void".to_string()),
         },
         _ => None,

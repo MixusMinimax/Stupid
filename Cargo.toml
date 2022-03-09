@@ -8,9 +8,10 @@ default-run = "stupid"
 
 [dependencies]
 clap = { version = "3.1.2", features = ["derive"] }
-lexgen = { version = "0.10.0" }
-lexgen_util = { version = "0.10.0" }
-parsegen = { version = "0.1.1" }
-strum = { version = "0.24" }
-strum_macros = {version = "0.24" }
-duplicate = { version = "0.4.0" }
+lexgen = "0.10.0"
+lexgen_util = "0.10.0"
+parsegen = "0.1.1"
+strum = "0.24"
+strum_macros = "0.24"
+duplicate = "0.4.0"
+indexmap = "1.8.0"

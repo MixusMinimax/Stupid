@@ -1,5 +1,6 @@
 use crate::parser::ParseResult;
-use std::{borrow::Borrow, cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
+use indexmap::IndexMap;
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 mod ast {
     pub use crate::parser::syntax::ast::*;
@@ -7,7 +8,8 @@ mod ast {
 
 pub mod analyzed {
     use crate::util::MyInto;
-    use std::{cell::RefCell, collections::HashMap, rc::Rc};
+    use indexmap::IndexMap;
+    use std::{cell::RefCell, rc::Rc};
 
     #[derive(Debug, Clone)]
     pub struct Type {
@@ -17,16 +19,16 @@ pub mod analyzed {
 
     #[derive(Debug)]
     pub struct Program {
-        pub types: HashMap<String, Type>,
-        pub constants: HashMap<String, Rc<RefCell<Declaration>>>,
-        pub procedures: HashMap<String, Rc<RefCell<Procedure>>>,
+        pub types: IndexMap<String, Type>,
+        pub constants: IndexMap<String, Rc<RefCell<Declaration>>>,
+        pub procedures: IndexMap<String, Rc<RefCell<Procedure>>>,
     }
 
     #[derive(Debug)]
     pub struct Procedure {
         pub name: String,
         pub return_type: Option<String>,
-        pub arguments: HashMap<String, Rc<RefCell<Declaration>>>,
+        pub arguments: IndexMap<String, Rc<RefCell<Declaration>>>,
         pub return_value: Box<Expression>,
     }
 
@@ -126,12 +128,12 @@ pub struct AstConversionError {
     message: String,
 }
 
-type Scope = HashMap<String, Rc<RefCell<analyzed::Declaration>>>;
+type Scope = IndexMap<String, Rc<RefCell<analyzed::Declaration>>>;
 
 pub fn convert(parsed: &ParseResult) -> Result<analyzed::Program, AstConversionError> {
     let types = scan_types(&parsed.root)?;
-    let mut constants = HashMap::new();
-    let mut procedures = HashMap::new();
+    let mut constants = IndexMap::new();
+    let mut procedures = IndexMap::new();
 
     // Create placeholders to populate root scope.
     for ref constant in parsed.root.constants.iter() {
@@ -151,7 +153,7 @@ pub fn convert(parsed: &ParseResult) -> Result<analyzed::Program, AstConversionE
             Rc::new(RefCell::new(analyzed::Procedure {
                 name: proc.name.clone(),
                 return_type: None,
-                arguments: HashMap::new(),
+                arguments: IndexMap::new(),
                 return_value: Box::new(analyzed::Expression::int(0)),
             })),
         );
@@ -176,8 +178,8 @@ pub fn convert(parsed: &ParseResult) -> Result<analyzed::Program, AstConversionE
     })
 }
 
-fn scan_types(_root: &ast::Root) -> Result<HashMap<String, analyzed::Type>, AstConversionError> {
-    let mut types = HashMap::new();
+fn scan_types(_root: &ast::Root) -> Result<IndexMap<String, analyzed::Type>, AstConversionError> {
+    let mut types = IndexMap::new();
     types.insert(
         "int".to_string(),
         analyzed::Type {
@@ -206,6 +208,13 @@ fn scan_types(_root: &ast::Root) -> Result<HashMap<String, analyzed::Type>, AstC
             size: 8,
         },
     );
+    types.insert(
+        "void".to_string(),
+        analyzed::Type {
+            name: "void".to_string(),
+            size: 8,
+        },
+    );
     // TODO: allow custom types to exist. Size dependency needs to be resolved.
     Ok(types)
 }
@@ -225,7 +234,7 @@ fn convert_procedure(
     procedure: &ast::Proc,
     scopes: &mut Vec<Scope>,
 ) -> Result<analyzed::Procedure, AstConversionError> {
-    let mut arguments = HashMap::new();
+    let mut arguments = IndexMap::new();
     for ref argument in &procedure.arguments {
         arguments.insert(
             argument.name.clone(),
@@ -325,7 +334,7 @@ fn convert_expression(
         }
 
         Block { statements, last } => {
-            scopes.push(HashMap::new());
+            scopes.push(IndexMap::new());
             let mut statements_converted = vec![];
             for s in statements.iter() {
                 if let Some(statement) = convert_statement(s, scopes)? {
