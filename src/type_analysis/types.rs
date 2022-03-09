@@ -121,14 +121,30 @@ fn analyze_expr(expression: &mut analyzed::Expression, analyze_all: bool) -> Res
         ),
         UnOp(_, expr) => Some(analyze_expr(&mut *expr, analyze_all)?),
         Variable(decl) => Some(analyze_decl(decl.clone(), analyze_all)?),
-        Block { last, .. } => match last {
-            Some(expr) => Some(analyze_expr(&mut **expr, analyze_all)?),
-            None => Some("void".to_string()),
-        },
-        _ => None,
+        Block { statements, last } => {
+            if analyze_all {
+                for statement in statements.iter_mut() {
+                    analyze_statement(statement)?;
+                }
+            }
+            let _asd = 1;
+            match last {
+                Some(expr) => Some(analyze_expr(&mut **expr, analyze_all)?),
+                None => Some("void".to_string()),
+            }
+        }
     };
     expression.type_ = type_.clone();
     type_.ok_or(())
+}
+
+fn analyze_statement(statement: &mut analyzed::Statement) -> Result<(), ()> {
+    use analyzed::Statement::*;
+    match statement {
+        ExpressionStatement(expr) => analyze_expr(expr, true)?,
+        VariableDeclaration(decl) => analyze_decl(decl.clone(), true)?,
+    };
+    Ok(())
 }
 
 fn common_type(left: String, right: String) -> Option<String> {
