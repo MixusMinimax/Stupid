@@ -99,6 +99,23 @@ impl Display for analyzed::Expression {
                 f.write_char('}')?;
                 Ok(())
             }
+            FunctionCall {
+                procedure,
+                arguments,
+            } => {
+                let name = &(**procedure).borrow().name;
+                write!(f, "{}(", name)?;
+                let mut is_first = true;
+                for arg in arguments.iter() {
+                    if !is_first {
+                        f.write_str(", ")?;
+                    }
+                    is_first = false;
+                    write!(f, "{:>indent$}", arg, indent = indent + 4)?;
+                }
+                f.write_char(')')?;
+                Ok(())
+            }
         }?;
         Ok(())
     }

@@ -1,10 +1,12 @@
 const A = 420;
 const B = 69 + A;
 
-proc main(a := 1) {
-    a + B
-}
+proc main foo()
 
-proc foo {
-    0
+proc foo bar()
+
+proc bar {
+    // Annotating x as float resolves the types of foo, bar, and main.
+    let x: float = foo() + B;
+    x
 }

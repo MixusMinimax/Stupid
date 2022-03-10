@@ -114,12 +114,10 @@ pub mod analyzed {
             statements: Vec<Statement>,
             last: Option<Box<Expression>>,
         },
-        /*
         FunctionCall {
             procedure: Rc<RefCell<Procedure>>,
             arguments: Vec<Expression>,
         },
-        */
     }
 
     #[derive(Debug)]
@@ -144,7 +142,7 @@ pub fn convert(parsed: &ParseResult) -> Result<analyzed::Program, AstConversionE
     let mut procedures = IndexMap::new();
 
     // Create placeholders to populate root scope.
-    for ref constant in parsed.root.constants.iter() {
+    for constant in parsed.root.constants.iter() {
         constants.insert(
             constant.name.clone(),
             Rc::new(RefCell::new(analyzed::Declaration::UnTyped {
@@ -155,30 +153,27 @@ pub fn convert(parsed: &ParseResult) -> Result<analyzed::Program, AstConversionE
         );
     }
 
-    for ref proc in parsed.root.functions.iter() {
+    for proc in parsed.root.functions.iter() {
         procedures.insert(
             proc.name.clone(),
-            Rc::new(RefCell::new(analyzed::Procedure {
-                name: proc.name.clone(),
-                return_type: None,
-                arguments: IndexMap::new(),
-                return_value: Box::new(analyzed::Expression::int(0)),
-                arg_count: 0,
-                arg_count_required: 0,
-            })),
+            Rc::new(RefCell::new(convert_procedure_declaration(proc)?)),
         );
     }
 
     let mut scopes = vec![constants.clone()];
 
-    for ref const_ in parsed.root.constants.iter() {
-        let constant = convert_constant(const_, &mut scopes)?;
+    for const_ in parsed.root.constants.iter() {
+        let constant = convert_constant(const_, &mut scopes, &procedures)?;
         *(*constants[const_.name.as_str()]).borrow_mut() = constant;
     }
 
-    for ref proc in parsed.root.functions.iter() {
-        let procedure = convert_procedure(proc, &mut scopes)?;
-        *(*procedures[proc.name.as_str()]).borrow_mut() = procedure;
+    for proc in parsed.root.functions.iter() {
+        convert_procedure(
+            proc,
+            procedures[proc.name.as_str()].clone(),
+            &mut scopes,
+            &procedures,
+        )?;
     }
 
     Ok(analyzed::Program {
@@ -232,24 +227,22 @@ fn scan_types(_root: &ast::Root) -> Result<IndexMap<String, analyzed::Type>, Ast
 fn convert_constant(
     constant: &ast::Const,
     scopes: &mut Vec<Scope>,
+    procedures: &IndexMap<String, Rc<RefCell<analyzed::Procedure>>>,
 ) -> Result<analyzed::Declaration, AstConversionError> {
     Ok(analyzed::Declaration::UnTyped {
         name: constant.name.clone(),
         type_: None,
-        value: Box::new(convert_expression(&constant.value, scopes)?),
+        value: Box::new(convert_expression(&constant.value, scopes, procedures)?),
     })
 }
 
-fn convert_procedure(
+fn convert_procedure_declaration(
     procedure: &ast::Proc,
-    scopes: &mut Vec<Scope>,
 ) -> Result<analyzed::Procedure, AstConversionError> {
-    let mut arguments = IndexMap::new();
-    let mut found_default_argument = false;
     let mut arg_count = 0;
     let mut arg_count_required = 0;
-
-    for ref argument in &procedure.arguments {
+    let mut found_default_argument = false;
+    for argument in procedure.arguments.iter() {
         arg_count += 1;
         if found_default_argument && argument.default.is_none() {
             return Err(AstConversionError::new(
@@ -261,6 +254,26 @@ fn convert_procedure(
         } else {
             arg_count_required += 1;
         }
+    }
+    Ok(analyzed::Procedure {
+        name: procedure.name.clone(),
+        return_type: None,
+        arguments: IndexMap::new(),
+        return_value: Box::new(analyzed::Expression::int(0)),
+        arg_count,
+        arg_count_required,
+    })
+}
+
+fn convert_procedure(
+    procedure: &ast::Proc,
+    procedure_converted: Rc<RefCell<analyzed::Procedure>>,
+    scopes: &mut Vec<Scope>,
+    procedures: &IndexMap<String, Rc<RefCell<analyzed::Procedure>>>,
+) -> Result<(), AstConversionError> {
+    let mut arguments = IndexMap::new();
+
+    for argument in procedure.arguments.iter() {
         arguments.insert(
             argument.name.clone(),
             match &argument.arg_type {
@@ -268,7 +281,7 @@ fn convert_procedure(
                     name: argument.name.clone(),
                     type_: type_.clone(),
                     value: match &argument.default {
-                        Some(val) => Some(Box::new(convert_expression(&*val, scopes)?)),
+                        Some(val) => Some(Box::new(convert_expression(&*val, scopes, procedures)?)),
                         _ => None,
                     },
                 })),
@@ -276,7 +289,7 @@ fn convert_procedure(
                     name: argument.name.clone(),
                     type_: None,
                     value: match &argument.default {
-                        Some(val) => Box::new(convert_expression(&*val, scopes)?),
+                        Some(val) => Box::new(convert_expression(&*val, scopes, procedures)?),
                         _ => {
                             return Err(AstConversionError::new(
                                 "Untyped Arguments require default value.",
@@ -287,26 +300,27 @@ fn convert_procedure(
             },
         );
     }
-    scopes.push(arguments.clone());
 
-    let ret = analyzed::Procedure {
-        name: procedure.name.clone(),
-        arguments,
-        return_type: match &procedure.return_type {
-            ast::Type::Named(ref name) => Some(name.clone()),
-            ast::Type::Auto => None,
-        },
-        return_value: Box::new(convert_expression(&procedure.value, scopes)?),
-        arg_count,
-        arg_count_required,
-    };
+    scopes.push(arguments.clone());
+    let return_value = Box::new(convert_expression(&procedure.value, scopes, procedures)?);
     scopes.pop();
-    Ok(ret)
+
+    let proc = &mut *(*procedure_converted).borrow_mut();
+    proc.name = procedure.name.clone();
+    proc.arguments = arguments;
+    proc.return_type = match &procedure.return_type {
+        ast::Type::Named(name) => Some(name.clone()),
+        ast::Type::Auto => None,
+    };
+    proc.return_value = return_value;
+
+    Ok(())
 }
 
 fn convert_expression(
     expr: &ast::Expression,
     scopes: &mut Vec<Scope>,
+    procedures: &IndexMap<String, Rc<RefCell<analyzed::Procedure>>>,
 ) -> Result<analyzed::Expression, AstConversionError> {
     use ast::Expression::*;
     Ok(match &expr {
@@ -318,20 +332,20 @@ fn convert_expression(
         BinOp(left, op, right) => analyzed::Expression {
             type_: None,
             value: analyzed::ExpressionValue::BinOp(
-                Box::new(convert_expression(left, scopes)?),
+                Box::new(convert_expression(left, scopes, procedures)?),
                 op.clone(),
-                Box::new(convert_expression(right, scopes)?),
+                Box::new(convert_expression(right, scopes, procedures)?),
             ),
         },
         UnOp(op, right) => analyzed::Expression {
             type_: None,
             value: analyzed::ExpressionValue::UnOp(
                 op.clone(),
-                Box::new(convert_expression(right, scopes)?),
+                Box::new(convert_expression(right, scopes, procedures)?),
             ),
         },
 
-        Bracketed(expr) => convert_expression(expr, scopes)?,
+        Bracketed(expr) => convert_expression(expr, scopes, procedures)?,
 
         Variable(name) => {
             let mut scope_iter = scopes.iter().rev();
@@ -364,7 +378,7 @@ fn convert_expression(
             scopes.push(IndexMap::new());
             let mut statements_converted = vec![];
             for s in statements.iter() {
-                if let Some(statement) = convert_statement(s, scopes)? {
+                if let Some(statement) = convert_statement(s, scopes, procedures)? {
                     if let analyzed::Statement::VariableDeclaration(decl) = &statement {
                         let scope = scopes.last_mut().unwrap();
                         let d = &*(**decl).borrow();
@@ -374,7 +388,7 @@ fn convert_expression(
                 }
             }
             let l = match last {
-                Some(expr) => Some(Box::new(convert_expression(expr, scopes)?)),
+                Some(expr) => Some(Box::new(convert_expression(expr, scopes, procedures)?)),
                 None => None,
             };
             scopes.pop();
@@ -387,6 +401,51 @@ fn convert_expression(
             }
         }
 
+        FunctionCall {
+            function,
+            arguments,
+        } => {
+            let procedure = match &**function {
+                Variable(name) => procedures
+                    .get(name)
+                    .ok_or(AstConversionError::new(format!(
+                        "Procedure {} not found!",
+                        name
+                    )))?
+                    .clone(),
+                _ => {
+                    return Err(AstConversionError::new(
+                        "dynamic function calls are not supported!",
+                    ))
+                }
+            };
+            let args = arguments
+                .iter()
+                .map(|arg| convert_expression(arg, scopes, procedures))
+                .collect::<Result<Vec<_>, _>>()?;
+            {
+                let analyzed::Procedure {
+                    ref name,
+                    arg_count,
+                    arg_count_required,
+                    ..
+                } = *(*procedure).borrow();
+                if args.len() < (arg_count_required as usize) || args.len() > (arg_count as usize) {
+                    return Err(AstConversionError::new(format!(
+                        "Wrong amount of arguments supplied! {} requires {}..={} arguments.",
+                        name, arg_count_required, arg_count
+                    )));
+                }
+            }
+            analyzed::Expression {
+                type_: None,
+                value: analyzed::ExpressionValue::FunctionCall {
+                    procedure,
+                    arguments: args,
+                },
+            }
+        }
+
         _ => todo!(),
     })
 }
@@ -394,6 +453,7 @@ fn convert_expression(
 fn convert_statement(
     statement: &ast::Statement,
     scopes: &mut Vec<Scope>,
+    procedures: &IndexMap<String, Rc<RefCell<analyzed::Procedure>>>,
 ) -> Result<Option<analyzed::Statement>, AstConversionError> {
     use ast::Statement::*;
     Ok(match statement {
@@ -408,7 +468,7 @@ fn convert_statement(
                     name: name.clone(),
                     type_: type_.clone(),
                     value: match value {
-                        Some(v) => Some(Box::new(convert_expression(&**v, scopes)?)),
+                        Some(v) => Some(Box::new(convert_expression(&**v, scopes, procedures)?)),
                         None => None,
                     },
                 },
@@ -416,7 +476,7 @@ fn convert_statement(
                     name: name.clone(),
                     type_: None,
                     value: match value {
-                        Some(v) => Box::new(convert_expression(&**v, scopes)?),
+                        Some(v) => Box::new(convert_expression(&**v, scopes, procedures)?),
                         None => {
                             return Err(AstConversionError::new(
                                 "Untyped variables require initialization value.",
@@ -427,7 +487,7 @@ fn convert_statement(
             }),
         ))),
         ExpressionStatement(expr) => Some(analyzed::Statement::ExpressionStatement(
-            convert_expression(expr, scopes)?,
+            convert_expression(expr, scopes, procedures)?,
         )),
         If { .. } => todo!(),
     })

@@ -19,8 +19,8 @@ pub fn analyze_program(program: &mut analyzed::Program) -> Result<(), TypeAnalys
         analyzed_count = 0;
         failed_count = 0;
 
-        for (_, constant) in &program.constants {
-            if let analyzed::Declaration::UnTyped { type_: Some(_), .. } = &*(*constant).borrow() {
+        for constant in program.constants.values() {
+            if let analyzed::Declaration::UnTyped { type_: Some(_), .. } = &*(**constant).borrow() {
                 continue;
             }
             match analyze_decl(constant.clone(), false) {
@@ -29,8 +29,8 @@ pub fn analyze_program(program: &mut analyzed::Program) -> Result<(), TypeAnalys
             };
         }
 
-        for (_, procedure) in &program.procedures {
-            if let Some(_) = (*procedure).borrow().return_type {
+        for procedure in program.procedures.values() {
+            if let Some(_) = (**procedure).borrow().return_type {
                 continue;
             }
             match analyze_proc(procedure.clone(), false) {
@@ -46,15 +46,13 @@ pub fn analyze_program(program: &mut analyzed::Program) -> Result<(), TypeAnalys
             break Err(TypeAnalysisError::new("Some types could not be deduced"));
         }
     }?;
-    // Now, we can fully analyze constants and procedures, including irrelevant variables.
-    for (_, constant) in &program.constants {
-        analyze_decl(constant.clone(), true)
-            .map_err(|()| TypeAnalysisError::new("Could not fully analyze constant"))?;
+    // Now, we can fully analyze constants and procedures, including irrelevant variables and arguments.
+    for constant in program.constants.values() {
+        analyze_decl(constant.clone(), true)?;
     }
 
-    for (_, procedure) in &program.procedures {
-        analyze_proc(procedure.clone(), true)
-            .map_err(|()| TypeAnalysisError::new("Could not fully analyze procedure"))?;
+    for procedure in program.procedures.values() {
+        analyze_proc(procedure.clone(), true)?;
     }
     Ok(())
 }
@@ -62,7 +60,7 @@ pub fn analyze_program(program: &mut analyzed::Program) -> Result<(), TypeAnalys
 fn analyze_decl(
     declaration: Rc<RefCell<analyzed::Declaration>>,
     analyze_all: bool,
-) -> Result<String, ()> {
+) -> Result<String, TypeAnalysisError> {
     match &mut *(*declaration).borrow_mut() {
         analyzed::Declaration::UnTyped { type_, value, .. } => match type_ {
             Some(name) if !analyze_all => Ok(name.clone()),
@@ -75,7 +73,8 @@ fn analyze_decl(
         analyzed::Declaration::Typed { type_, value, .. } => {
             if analyze_all {
                 if let Some(v) = value {
-                    analyze_expr(&mut **v, analyze_all)?;
+                    let actual_type = analyze_expr(&mut **v, analyze_all)?;
+                    check_assignable(&actual_type, type_)?;
                 }
             }
             Ok(type_.clone())
@@ -83,7 +82,10 @@ fn analyze_decl(
     }
 }
 
-fn analyze_proc(procedure: Rc<RefCell<analyzed::Procedure>>, analyze_all: bool) -> Result<(), ()> {
+fn analyze_proc(
+    procedure: Rc<RefCell<analyzed::Procedure>>,
+    analyze_all: bool,
+) -> Result<(), TypeAnalysisError> {
     if analyze_all {
         // Extract argument rcs so that proc is not borrowed while analyzing arguments.
         // In theory, a function can be used as a default argument for an argument of itself.
@@ -105,7 +107,10 @@ fn analyze_proc(procedure: Rc<RefCell<analyzed::Procedure>>, analyze_all: bool) 
     Ok(())
 }
 
-fn analyze_expr(expression: &mut analyzed::Expression, analyze_all: bool) -> Result<String, ()> {
+fn analyze_expr(
+    expression: &mut analyzed::Expression,
+    analyze_all: bool,
+) -> Result<String, TypeAnalysisError> {
     use analyzed::ExpressionValue::*;
 
     if !analyze_all {
@@ -114,10 +119,14 @@ fn analyze_expr(expression: &mut analyzed::Expression, analyze_all: bool) -> Res
         }
     }
     let type_ = match &mut expression.value {
-        Integer(_) | Long(_) | Float(_) | Double(_) => return expression.type_.clone().ok_or(()),
+        Integer(_) | Long(_) | Float(_) | Double(_) => {
+            return expression.type_.clone().ok_or(TypeAnalysisError::new(
+                "Literal was missing type. This is not possible",
+            ))
+        }
         BinOp(left, _, right) => common_type(
-            analyze_expr(&mut *left, analyze_all)?,
-            analyze_expr(&mut *right, analyze_all)?,
+            &analyze_expr(&mut *left, analyze_all)?,
+            &analyze_expr(&mut *right, analyze_all)?,
         ),
         UnOp(_, expr) => Some(analyze_expr(&mut *expr, analyze_all)?),
         Variable(decl) => Some(analyze_decl(decl.clone(), analyze_all)?),
@@ -133,12 +142,29 @@ fn analyze_expr(expression: &mut analyzed::Expression, analyze_all: bool) -> Res
                 None => Some("void".to_string()),
             }
         }
+        FunctionCall {
+            procedure,
+            arguments,
+        } => {
+            if analyze_all {
+                for (expr, decl) in arguments
+                    .iter_mut()
+                    .zip((*procedure.clone()).borrow().arguments.values())
+                {
+                    let actual_type = analyze_expr(expr, analyze_all)?;
+                    let expected_type = analyze_decl(decl.clone(), analyze_all)?;
+                    check_assignable(&actual_type, &expected_type)?;
+                }
+            };
+            let return_type = (**procedure).borrow().return_type.clone();
+            return_type
+        }
     };
     expression.type_ = type_.clone();
-    type_.ok_or(())
+    type_.ok_or(TypeAnalysisError::new("Failed to analyze expression"))
 }
 
-fn analyze_statement(statement: &mut analyzed::Statement) -> Result<(), ()> {
+fn analyze_statement(statement: &mut analyzed::Statement) -> Result<(), TypeAnalysisError> {
     use analyzed::Statement::*;
     match statement {
         ExpressionStatement(expr) => analyze_expr(expr, true)?,
@@ -147,7 +173,7 @@ fn analyze_statement(statement: &mut analyzed::Statement) -> Result<(), ()> {
     Ok(())
 }
 
-fn common_type(left: String, right: String) -> Option<String> {
+fn common_type(left: &String, right: &String) -> Option<String> {
     match (left.as_str(), right.as_str()) {
         (t_left, t_right) if t_left == t_right => Some(t_left.to_string()),
         ("int", "long") | ("long", "int") => Some("long".to_string()),
@@ -156,6 +182,20 @@ fn common_type(left: String, right: String) -> Option<String> {
             Some("double".to_string())
         }
         _ => None,
+    }
+}
+
+fn check_assignable(actual_type: &String, expected_type: &String) -> Result<(), TypeAnalysisError> {
+    if !(match common_type(actual_type, expected_type) {
+        Some(common) => common == *expected_type,
+        _ => false,
+    }) {
+        Err(TypeAnalysisError::new(format!(
+            "Expected {}, but got {}",
+            expected_type, actual_type
+        )))
+    } else {
+        Ok(())
     }
 }
 
