@@ -116,6 +116,15 @@ impl Display for analyzed::Expression {
                 f.write_char(')')?;
                 Ok(())
             }
+            Assignment(variable, value) => {
+                write!(
+                    f,
+                    "({} = {:>indent$})",
+                    (**variable).borrow().get_name(),
+                    &**value,
+                    indent = indent
+                )
+            }
         }?;
         Ok(())
     }

@@ -159,6 +159,14 @@ fn analyze_expr(
             let return_type = (**procedure).borrow().return_type.clone();
             return_type
         }
+        Assignment(decl, value) => {
+            let expected_type = analyze_decl(decl.clone(), analyze_all)?;
+            if analyze_all {
+                let actual_type = analyze_expr(value, analyze_all)?;
+                check_assignable(&actual_type, &expected_type)?;
+            };
+            Some(expected_type)
+        }
     };
     expression.type_ = type_.clone();
     type_.ok_or(TypeAnalysisError::new("Failed to analyze expression"))

@@ -8,5 +8,6 @@ proc foo bar()
 proc bar {
     // Annotating x as float resolves the types of foo, bar, and main.
     let x: float = foo() + B;
-    x
+    let y = x = x + 1;
+    y
 }

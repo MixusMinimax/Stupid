@@ -118,6 +118,8 @@ pub mod analyzed {
             procedure: Rc<RefCell<Procedure>>,
             arguments: Vec<Expression>,
         },
+
+        Assignment(Rc<RefCell<Declaration>>, Box<Expression>),
     }
 
     #[derive(Debug)]
@@ -323,130 +325,134 @@ fn convert_expression(
     procedures: &IndexMap<String, Rc<RefCell<analyzed::Procedure>>>,
 ) -> Result<analyzed::Expression, AstConversionError> {
     use ast::Expression::*;
-    Ok(match &expr {
-        Integer(value) => analyzed::Expression::int(*value),
-        Long(value) => analyzed::Expression::long(*value),
-        Float(value) => analyzed::Expression::float(*value),
-        Double(value) => analyzed::Expression::double(*value),
+    Ok(analyzed::Expression {
+        type_: None,
+        value: match &expr {
+            Integer(value) => return Ok(analyzed::Expression::int(*value)),
+            Long(value) => return Ok(analyzed::Expression::long(*value)),
+            Float(value) => return Ok(analyzed::Expression::float(*value)),
+            Double(value) => return Ok(analyzed::Expression::double(*value)),
 
-        BinOp(left, op, right) => analyzed::Expression {
-            type_: None,
-            value: analyzed::ExpressionValue::BinOp(
+            BinOp(left, op, right) => analyzed::ExpressionValue::BinOp(
                 Box::new(convert_expression(left, scopes, procedures)?),
                 op.clone(),
                 Box::new(convert_expression(right, scopes, procedures)?),
             ),
-        },
-        UnOp(op, right) => analyzed::Expression {
-            type_: None,
-            value: analyzed::ExpressionValue::UnOp(
+
+            UnOp(op, right) => analyzed::ExpressionValue::UnOp(
                 op.clone(),
                 Box::new(convert_expression(right, scopes, procedures)?),
             ),
-        },
 
-        Bracketed(expr) => convert_expression(expr, scopes, procedures)?,
+            Bracketed(expr) => return convert_expression(expr, scopes, procedures),
 
-        Variable(name) => {
-            let mut scope_iter = scopes.iter().rev();
-            match {
-                loop {
-                    match scope_iter.next() {
-                        Some(scope) => {
-                            if let Some(decl) = scope.get(name.as_str()) {
-                                break Some(decl.clone());
+            Variable(name) => {
+                let mut scope_iter = scopes.iter().rev();
+                match {
+                    loop {
+                        match scope_iter.next() {
+                            Some(scope) => {
+                                if let Some(decl) = scope.get(name.as_str()) {
+                                    break Some(decl.clone());
+                                }
                             }
+                            None => break None,
                         }
-                        None => break None,
+                    }
+                } {
+                    Some(decl) => analyzed::ExpressionValue::Variable(decl),
+                    None => {
+                        return Err(AstConversionError::new(format!(
+                            "Variable \"{}\" not found!",
+                            name.as_str()
+                        )))
                     }
                 }
-            } {
-                Some(decl) => analyzed::Expression {
-                    type_: None,
-                    value: analyzed::ExpressionValue::Variable(decl),
-                },
-                None => {
-                    return Err(AstConversionError::new(format!(
-                        "Variable \"{}\" not found!",
-                        name.as_str()
-                    )))
-                }
             }
-        }
 
-        Block { statements, last } => {
-            scopes.push(IndexMap::new());
-            let mut statements_converted = vec![];
-            for s in statements.iter() {
-                if let Some(statement) = convert_statement(s, scopes, procedures)? {
-                    if let analyzed::Statement::VariableDeclaration(decl) = &statement {
-                        let scope = scopes.last_mut().unwrap();
-                        let d = &*(**decl).borrow();
-                        scope.insert(d.get_name().to_string(), decl.clone());
+            Block { statements, last } => {
+                scopes.push(IndexMap::new());
+                let mut statements_converted = vec![];
+                for s in statements.iter() {
+                    if let Some(statement) = convert_statement(s, scopes, procedures)? {
+                        if let analyzed::Statement::VariableDeclaration(decl) = &statement {
+                            let scope = scopes.last_mut().unwrap();
+                            let d = &*(**decl).borrow();
+                            scope.insert(d.get_name().to_string(), decl.clone());
+                        }
+                        statements_converted.push(statement);
                     }
-                    statements_converted.push(statement);
                 }
-            }
-            let l = match last {
-                Some(expr) => Some(Box::new(convert_expression(expr, scopes, procedures)?)),
-                None => None,
-            };
-            scopes.pop();
-            analyzed::Expression {
-                type_: None,
-                value: analyzed::ExpressionValue::Block {
+                let l = match last {
+                    Some(expr) => Some(Box::new(convert_expression(expr, scopes, procedures)?)),
+                    None => None,
+                };
+                scopes.pop();
+                analyzed::ExpressionValue::Block {
                     statements: statements_converted,
                     last: l,
-                },
+                }
             }
-        }
 
-        FunctionCall {
-            function,
-            arguments,
-        } => {
-            let procedure = match &**function {
-                Variable(name) => procedures
-                    .get(name)
-                    .ok_or(AstConversionError::new(format!(
-                        "Procedure {} not found!",
-                        name
-                    )))?
-                    .clone(),
-                _ => {
-                    return Err(AstConversionError::new(
-                        "dynamic function calls are not supported!",
-                    ))
+            FunctionCall {
+                function,
+                arguments,
+            } => {
+                let procedure = match &**function {
+                    Variable(name) => procedures
+                        .get(name)
+                        .ok_or(AstConversionError::new(format!(
+                            "Procedure {} not found!",
+                            name
+                        )))?
+                        .clone(),
+                    _ => {
+                        return Err(AstConversionError::new(
+                            "dynamic function calls are not supported!",
+                        ))
+                    }
+                };
+                let args = arguments
+                    .iter()
+                    .map(|arg| convert_expression(arg, scopes, procedures))
+                    .collect::<Result<Vec<_>, _>>()?;
+                {
+                    let analyzed::Procedure {
+                        ref name,
+                        arg_count,
+                        arg_count_required,
+                        ..
+                    } = *(*procedure).borrow();
+                    if args.len() < (arg_count_required as usize)
+                        || args.len() > (arg_count as usize)
+                    {
+                        return Err(AstConversionError::new(format!(
+                            "Wrong amount of arguments supplied! {} requires {}..={} arguments.",
+                            name, arg_count_required, arg_count
+                        )));
+                    }
                 }
-            };
-            let args = arguments
-                .iter()
-                .map(|arg| convert_expression(arg, scopes, procedures))
-                .collect::<Result<Vec<_>, _>>()?;
-            {
-                let analyzed::Procedure {
-                    ref name,
-                    arg_count,
-                    arg_count_required,
-                    ..
-                } = *(*procedure).borrow();
-                if args.len() < (arg_count_required as usize) || args.len() > (arg_count as usize) {
-                    return Err(AstConversionError::new(format!(
-                        "Wrong amount of arguments supplied! {} requires {}..={} arguments.",
-                        name, arg_count_required, arg_count
-                    )));
-                }
-            }
-            analyzed::Expression {
-                type_: None,
-                value: analyzed::ExpressionValue::FunctionCall {
+                analyzed::ExpressionValue::FunctionCall {
                     procedure,
                     arguments: args,
-                },
+                }
             }
-        }
 
-        _ => todo!(),
+            Assignment(v, val) => match &**v {
+                var @ Variable(_) => {
+                    let variable = convert_expression(var, scopes, procedures)?;
+                    let value = convert_expression(val, scopes, procedures)?;
+                    if let analyzed::ExpressionValue::Variable(decl) = variable.value {
+                        analyzed::ExpressionValue::Assignment(decl, Box::new(value))
+                    } else {
+                        panic!("variable was not converted to variable!");
+                    }
+                }
+                _ => todo!(),
+            },
+
+            _ => todo!(),
+        },
     })
 }
 
