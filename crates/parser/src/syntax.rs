@@ -53,6 +53,7 @@ parser! {
         "float" => (Token::Float(<String>), <TokenEntry>),
         "double" => (Token::Double(<String>), <TokenEntry>),
         "str" => (Token::String(<String>), <TokenEntry>),
+        "bool" => (Token::Boolean(<bool>), <TokenEntry>),
     }
 
     pub Root: Result<ast::Root, ParseError> = {
@@ -288,9 +289,9 @@ parser! {
             Ok(ast::Expression::Double(Parsable::parse(&n.0)?))
         })(),
 
-        <var:"var"> => (||{
-            Ok(ast::Expression::Variable(var.0))
-        })(),
+        <var:"var"> => Ok(ast::Expression::Variable(var.0)),
+
+        <b:"bool"> => Ok(ast::Expression::Boolean(b.0)),
 
         "(" <e:Expr> ")" => (||{
             // This is needed later when flipping assignments around
@@ -464,6 +465,7 @@ pub mod ast {
         Long(i64),
         Float(f32),
         Double(f64),
+        Boolean(bool),
         Variable(String),
 
         BinOp(Box<Expression>, BinOperator, Box<Expression>),

@@ -97,6 +97,13 @@ pub mod analyzed {
                 type_: Some("double".to_string()),
             }
         }
+
+        pub fn boolean(value: bool) -> Self {
+            Expression {
+                value: ExpressionValue::Boolean(value),
+                type_: Some("bool".to_string()),
+            }
+        }
     }
 
     #[derive(Debug)]
@@ -105,6 +112,7 @@ pub mod analyzed {
         Long(i64),
         Float(f32),
         Double(f64),
+        Boolean(bool),
         Variable(Rc<RefCell<Declaration>>),
 
         BinOp(Box<Expression>, super::ast::BinOperator, Box<Expression>),
@@ -222,6 +230,13 @@ fn scan_types(_root: &ast::Root) -> Result<IndexMap<String, analyzed::Type>, Ast
             size: 8,
         },
     );
+    types.insert(
+        "bool".to_string(),
+        analyzed::Type {
+            name: "bool".to_string(),
+            size: 4,
+        },
+    );
     // TODO: allow custom types to exist. Size dependency needs to be resolved.
     Ok(types)
 }
@@ -332,6 +347,7 @@ fn convert_expression(
             Long(value) => return Ok(analyzed::Expression::long(*value)),
             Float(value) => return Ok(analyzed::Expression::float(*value)),
             Double(value) => return Ok(analyzed::Expression::double(*value)),
+            Boolean(value) => return Ok(analyzed::Expression::boolean(*value)),
 
             BinOp(left, op, right) => analyzed::ExpressionValue::BinOp(
                 Box::new(convert_expression(left, scopes, procedures)?),

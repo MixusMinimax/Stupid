@@ -1,5 +1,5 @@
-use util::MyInto;
 use std::fmt::{Display, Write};
+use util::MyInto;
 
 mod analyzed {
     pub use crate::program::analyzed::*;
@@ -64,6 +64,7 @@ impl Display for analyzed::Expression {
             Long(value) => write!(f, "{}l", value),
             Float(value) => write!(f, "{}f", value),
             Double(value) => write!(f, "{}d", value),
+            Boolean(value) => write!(f, "{}", value),
             Variable(var) => f.write_str((*(**var).borrow()).get_name()),
             BinOp(left, op, right) => {
                 write!(

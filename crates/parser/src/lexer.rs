@@ -51,6 +51,7 @@ pub enum Token {
     Long(String),
     Float(String),
     Double(String),
+    Boolean(bool),
     String(String),
 }
 
@@ -116,6 +117,8 @@ lexer! {
         "let" = Token::Let,
         "if" = Token::If,
         "else" = Token::Else,
+        "true" = Token::Boolean(true),
+        "false" = Token::Boolean(false),
 
         $var_init $var_subseq* => |lexer| {
             let match_ = lexer.match_();
@@ -382,7 +385,7 @@ impl std::fmt::Display for LexResult {
             } else {
                 f.write_str(", ")?;
             }
-            f.write_fmt(format_args!("{}", token))?;
+            write!(f, "{}", token)?;
         }
         Ok(())
     }
@@ -442,7 +445,8 @@ fn reconstruct(tokens: &TokenList, f: &mut std::fmt::Formatter<'_>) -> std::fmt:
             | Token::Long(s)
             | Token::Float(s)
             | Token::Double(s) => f.write_str(s),
-            Token::String(s) => f.write_fmt(format_args!("{:?}", s.as_str())),
+            Token::Boolean(s) => write!(f, "{}", s),
+            Token::String(s) => write!(f, "{:?}", s.as_str()),
         }?;
     }
     Ok(())
@@ -459,7 +463,8 @@ fn fmt_token(token: &Token, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
         | Token::Long(s)
         | Token::Float(s)
         | Token::Double(s)
-        | Token::String(s) => f.write_fmt(format_args!("{}{{{}}}", token, s)),
-        _ => f.write_fmt(format_args!("{}", token)),
+        | Token::String(s) => write!(f, "{}{{{}}}", token, s),
+        Token::Boolean(s) => write!(f, "{}{{{}}}", token, s),
+        _ => write!(f, "{}", token),
     }
 }

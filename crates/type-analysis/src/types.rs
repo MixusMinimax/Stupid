@@ -119,16 +119,40 @@ fn analyze_expr(
         }
     }
     let type_ = match &mut expression.value {
-        Integer(_) | Long(_) | Float(_) | Double(_) => {
+        Integer(_) | Long(_) | Float(_) | Double(_) | Boolean(_) => {
             return expression.type_.clone().ok_or(TypeAnalysisError::new(
                 "Literal was missing type. This is not possible",
             ))
         }
-        BinOp(left, _, right) => common_type(
-            &analyze_expr(&mut *left, analyze_all)?,
-            &analyze_expr(&mut *right, analyze_all)?,
-        ),
-        UnOp(_, expr) => Some(analyze_expr(&mut *expr, analyze_all)?),
+        BinOp(left, op, right) => {
+            use parser::syntax::ast::BinOperator::*;
+            match op {
+                Add | Subtract | Multiply | Divide | BitAnd | BitOr | BitEor => common_type(
+                    &analyze_expr(&mut *left, analyze_all)?,
+                    &analyze_expr(&mut *right, analyze_all)?,
+                ),
+                Equals | NotEquals | Greater | GreaterEq | Less | LessEq | And | Or => {
+                    if analyze_all {
+                        analyze_expr(&mut *left, analyze_all)?;
+                        analyze_expr(&mut *right, analyze_all)?;
+                    }
+                    Some("bool".to_string())
+                }
+            }
+        }
+        UnOp(op, expr) => {
+            use parser::syntax::ast::UnOperator::*;
+            match op {
+                Negate | BitNot => Some(analyze_expr(&mut *expr, analyze_all)?),
+                Not => {
+                    if analyze_all {
+                        analyze_expr(&mut *expr, analyze_all)?;
+                    }
+                    Some("bool".to_string())
+                }
+                Deref => todo!(),
+            }
+        }
         Variable(decl) => Some(analyze_decl(decl.clone(), analyze_all)?),
         Block { statements, last } => {
             if analyze_all {
