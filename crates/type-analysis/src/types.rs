@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 mod analyzed {
-    pub use crate::type_analysis::program::analyzed::*;
+    pub use crate::program::analyzed::*;
 }
 
 pub struct TypeAnalysisError {

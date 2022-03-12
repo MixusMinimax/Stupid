@@ -1,4 +1,4 @@
-use crate::parser::ParseResult;
+use parser::ParseResult;
 
 pub mod display;
 pub mod program;
@@ -37,5 +37,15 @@ impl TypeAnalyzer {
             Ok(())
         })?;
         Ok(TypeResult { program })
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        let result = 2 + 2;
+        assert_eq!(result, 4);
     }
 }

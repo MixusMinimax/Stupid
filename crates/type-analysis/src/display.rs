@@ -1,8 +1,8 @@
-use crate::util::MyInto;
+use util::MyInto;
 use std::fmt::{Display, Write};
 
 mod analyzed {
-    pub use crate::type_analysis::program::analyzed::*;
+    pub use crate::program::analyzed::*;
 }
 
 impl Display for analyzed::Program {

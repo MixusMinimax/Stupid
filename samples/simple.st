@@ -1,13 +1,21 @@
-const A = 420;
-const B = 69 + A;
+const A: int = 123;
+const B = 0.4f;
 
-proc main foo()
+proc main {
+    let x = foo(2);
+    let y = bar(3, 2);
+    x = x * y;
+    x + 1
+}
 
-proc foo bar()
+// This will not terminate, but that doesn't matter for syntax highlighting.
+proc foo(a: int) bar(a)
 
-proc bar {
-    // Annotating x as float resolves the types of foo, bar, and main.
-    let x: float = foo() + B;
-    let y = x = x + 1;
-    y
+proc bar(a: int, b := 10) {
+    // annotating x as float resolves the type of bar, and therefore foo and main.
+    let x: float = {
+        let temp = foo(a - 1);
+        temp - 1
+    };
+    x * b
 }

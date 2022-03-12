@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 
 mod ast {
-    pub use crate::parser::syntax::ast::*;
+    pub use crate::syntax::ast::*;
 }
 
 impl Display for ast::BinOperator {

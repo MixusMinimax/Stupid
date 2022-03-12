@@ -1,8 +1,5 @@
-mod parser;
-mod type_analysis;
-mod util;
-use self::parser::CodeParser;
-use self::type_analysis::TypeAnalyzer;
+use parser::CodeParser;
+use type_analysis::TypeAnalyzer;
 use clap::Parser;
 
 #[derive(Parser, Debug)]

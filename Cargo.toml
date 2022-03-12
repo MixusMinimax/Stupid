@@ -1,17 +1,5 @@
-[package]
-name = "stupid"
-version = "0.1.0"
-edition = "2021"
-default-run = "stupid"
+[workspace]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-clap = { version = "3.1.2", features = ["derive"] }
-lexgen = "0.10.0"
-lexgen_util = "0.10.0"
-parsegen = "0.1.1"
-strum = "0.24"
-strum_macros = "0.24"
-duplicate = "0.4.0"
-indexmap = "1.8.0"
+members = [
+    "crates/*"
+]

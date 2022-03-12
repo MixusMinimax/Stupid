@@ -1,15 +1,15 @@
-use crate::parser::ParseResult;
 use indexmap::IndexMap;
+use parser::ParseResult;
 use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 mod ast {
-    pub use crate::parser::syntax::ast::*;
+    pub use parser::syntax::ast::*;
 }
 
 pub mod analyzed {
-    use crate::util::MyInto;
     use indexmap::IndexMap;
     use std::{cell::RefCell, rc::Rc};
+    use util::MyInto;
 
     #[derive(Debug, Clone)]
     pub struct Type {
