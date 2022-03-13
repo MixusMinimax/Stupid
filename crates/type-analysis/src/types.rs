@@ -191,6 +191,19 @@ fn analyze_expr(
             };
             Some(expected_type)
         }
+        IfElse {
+            condition,
+            then,
+            else_,
+        } => {
+            if analyze_all {
+                let cond_t = analyze_expr(condition, analyze_all)?;
+                check_assignable(&cond_t, &"bool".to_string())?;
+            };
+            let then_t = analyze_expr(then, analyze_all)?;
+            let else_t = analyze_expr(else_, analyze_all)?;
+            common_type(&then_t, &else_t)
+        }
     };
     expression.type_ = type_.clone();
     type_.ok_or(TypeAnalysisError::new("Failed to analyze expression"))
@@ -213,6 +226,7 @@ fn common_type(left: &String, right: &String) -> Option<String> {
         ("double", "int" | "long" | "float") | ("int" | "long" | "float", "double") => {
             Some("double".to_string())
         }
+        ("bool", "int" | "long") | ("int" | "long", "bool") => Some("bool".to_string()),
         _ => None,
     }
 }

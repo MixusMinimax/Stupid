@@ -128,6 +128,12 @@ pub mod analyzed {
         },
 
         Assignment(Rc<RefCell<Declaration>>, Box<Expression>),
+
+        IfElse {
+            condition: Box<Expression>,
+            then: Box<Expression>,
+            else_: Box<Expression>,
+        },
     }
 
     #[derive(Debug)]
@@ -342,7 +348,7 @@ fn convert_expression(
     use ast::Expression::*;
     Ok(analyzed::Expression {
         type_: None,
-        value: match &expr {
+        value: match expr {
             Integer(value) => return Ok(analyzed::Expression::int(*value)),
             Long(value) => return Ok(analyzed::Expression::long(*value)),
             Float(value) => return Ok(analyzed::Expression::float(*value)),
@@ -465,6 +471,16 @@ fn convert_expression(
                     }
                 }
                 _ => todo!(),
+            },
+
+            IfElse {
+                condition,
+                then,
+                else_,
+            } => analyzed::ExpressionValue::IfElse {
+                condition: Box::new(convert_expression(condition, scopes, procedures)?),
+                then: Box::new(convert_expression(then, scopes, procedures)?),
+                else_: Box::new(convert_expression(else_, scopes, procedures)?),
             },
 
             _ => todo!(),

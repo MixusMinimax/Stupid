@@ -126,6 +126,20 @@ impl Display for analyzed::Expression {
                     indent = indent
                 )
             }
+            IfElse {
+                condition,
+                then,
+                else_,
+            } => {
+                write!(
+                    f,
+                    "(if {:>indent$} {:>indent$} else {:>indent$})",
+                    &**condition,
+                    &**then,
+                    &**else_,
+                    indent = indent
+                )
+            }
         }?;
         Ok(())
     }
