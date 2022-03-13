@@ -140,6 +140,10 @@ pub mod analyzed {
     pub enum Statement {
         ExpressionStatement(Expression),
         VariableDeclaration(Rc<RefCell<Declaration>>),
+        If {
+            condition: Box<Expression>,
+            then: Box<Expression>,
+        },
     }
 }
 
@@ -483,7 +487,7 @@ fn convert_expression(
                 else_: Box::new(convert_expression(else_, scopes, procedures)?),
             },
 
-            _ => todo!(),
+            Member(_, _) => todo!(),
         },
     })
 }
@@ -527,7 +531,10 @@ fn convert_statement(
         ExpressionStatement(expr) => Some(analyzed::Statement::ExpressionStatement(
             convert_expression(expr, scopes, procedures)?,
         )),
-        If { .. } => todo!(),
+        If { condition, then } => Some(analyzed::Statement::If {
+            condition: Box::new(convert_expression(condition, scopes, procedures)?),
+            then: Box::new(convert_expression(then, scopes, procedures)?),
+        }),
     })
 }
 

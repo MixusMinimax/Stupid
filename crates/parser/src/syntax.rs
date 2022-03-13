@@ -379,7 +379,7 @@ parser! {
                 condition: Box::new(condition?),
                 then: Box::new(body?)
             })
-        })(),
+        })(), 
     };
 }
 

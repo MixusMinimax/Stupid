@@ -166,6 +166,15 @@ impl Display for analyzed::Statement {
                     None => write!(f, "let {}: {};", name, display_type(type_)),
                 }
             }
+            If { condition, then } => {
+                write!(
+                    f,
+                    "if {:>indent$} {:>indent$};",
+                    condition,
+                    then,
+                    indent = indent
+                )
+            }
         }
     }
 }

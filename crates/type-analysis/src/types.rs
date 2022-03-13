@@ -214,6 +214,10 @@ fn analyze_statement(statement: &mut analyzed::Statement) -> Result<(), TypeAnal
     match statement {
         ExpressionStatement(expr) => analyze_expr(expr, true)?,
         VariableDeclaration(decl) => analyze_decl(decl.clone(), true)?,
+        If { condition, then } => {
+            analyze_expr(condition, true)?;
+            analyze_expr(then, true)?
+        }
     };
     Ok(())
 }
