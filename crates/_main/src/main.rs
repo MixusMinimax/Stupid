@@ -1,6 +1,6 @@
+use clap::Parser;
 use parser::CodeParser;
 use type_analysis::TypeAnalyzer;
-use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[clap(version = env!("CARGO_PKG_VERSION"))]
