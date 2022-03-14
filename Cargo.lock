@@ -6,7 +6,7 @@ version = 3
 name = "abstract-asm"
 version = "0.1.0"
 dependencies = [
- "type-analysis",
+ "evaluator",
 ]
 
 [[package]]
@@ -76,6 +76,13 @@ checksum = "4a2535fcf1437c9de0d91a3921351c474258abdb6440cd03bb5a7cf0547e7214"
 dependencies = [
  "heck",
  "proc-macro-error",
+]
+
+[[package]]
+name = "evaluator"
+version = "0.1.0"
+dependencies = [
+ "type-analysis",
 ]
 
 [[package]]
@@ -157,6 +164,7 @@ version = "0.1.0"
 dependencies = [
  "abstract-asm",
  "clap",
+ "evaluator",
  "parser",
  "type-analysis",
 ]

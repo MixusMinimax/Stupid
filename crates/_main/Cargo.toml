@@ -9,4 +9,5 @@ edition = "2021"
 clap = { version = "3.1.2", features = ["derive"] }
 parser = { path = "../parser" }
 type-analysis = { path = "../type-analysis" }
+evaluator = { path = "../evaluator" }
 abstract-asm = { path = "../abstract-asm" }

@@ -4,6 +4,7 @@ mod analyzed {
     pub use crate::program::analyzed::*;
 }
 
+#[derive(Debug)]
 pub struct TypeAnalysisError {
     message: String,
 }
@@ -261,7 +262,7 @@ impl TypeAnalysisError {
 
 impl Display for TypeAnalysisError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("AstConversionError: {}", self.message))?;
+        f.write_fmt(format_args!("TypeAnalysisError: {}", self.message))?;
         Ok(())
     }
 }
