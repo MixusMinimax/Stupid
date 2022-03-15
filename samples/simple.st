@@ -1,5 +1,5 @@
-const A: int = 123;
-const B = 0.4f;
+const A: int = 123 + 321;
+const B = 0.4f * 2;
 
 proc main {
     let x = foo(2);

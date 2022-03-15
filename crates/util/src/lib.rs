@@ -11,6 +11,15 @@ impl<'a, T: Sized> MyInto<Option<&'a T>> for &'a Option<T> {
     }
 }
 
+impl<'a, T: Sized> MyInto<Option<&'a mut T>> for &'a mut Option<T> {
+    fn into(self) -> Option<&'a mut T> {
+        match self {
+            Some(e) => Some(e),
+            None => None,
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

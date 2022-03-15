@@ -7,6 +7,7 @@ mod ast {
 }
 
 pub mod analyzed {
+    pub use super::ast::{BinOperator, UnOperator};
     use indexmap::IndexMap;
     use std::{cell::RefCell, rc::Rc};
     use util::MyInto;
@@ -61,12 +62,63 @@ pub mod analyzed {
                 Self::UnTyped { name, type_, value } => (name, MyInto::into(type_), Some(value)),
             }
         }
+
+        pub fn get_mut(
+            &mut self,
+        ) -> (
+            &mut String,
+            Option<&mut String>,
+            Option<&mut Box<Expression>>,
+        ) {
+            match self {
+                Self::Typed { name, type_, value } => (name, Some(type_), MyInto::into(value)),
+                Self::UnTyped { name, type_, value } => (name, MyInto::into(type_), Some(value)),
+            }
+        }
     }
 
     #[derive(Debug)]
     pub struct Expression {
         pub value: ExpressionValue,
         pub type_: Option<String>,
+    }
+
+    pub enum LiteralType {
+        I32(i32),
+        I64(i64),
+        F32(f32),
+        F64(f64),
+        Bool(bool),
+    }
+
+    impl From<i32> for LiteralType {
+        fn from(a: i32) -> Self {
+            LiteralType::I32(a)
+        }
+    }
+
+    impl From<i64> for LiteralType {
+        fn from(a: i64) -> Self {
+            LiteralType::I64(a)
+        }
+    }
+
+    impl From<f32> for LiteralType {
+        fn from(a: f32) -> Self {
+            LiteralType::F32(a)
+        }
+    }
+
+    impl From<f64> for LiteralType {
+        fn from(a: f64) -> Self {
+            LiteralType::F64(a)
+        }
+    }
+
+    impl From<bool> for LiteralType {
+        fn from(a: bool) -> Self {
+            LiteralType::Bool(a)
+        }
     }
 
     impl Expression {
@@ -102,6 +154,16 @@ pub mod analyzed {
             Expression {
                 value: ExpressionValue::Boolean(value),
                 type_: Some("bool".to_string()),
+            }
+        }
+
+        pub fn literal<T: Into<LiteralType>>(value: T) -> Self {
+            match value.into() {
+                LiteralType::I32(a) => Self::int(a),
+                LiteralType::I64(a) => Self::long(a),
+                LiteralType::F32(a) => Self::float(a),
+                LiteralType::F64(a) => Self::double(a),
+                LiteralType::Bool(a) => Self::boolean(a),
             }
         }
     }
