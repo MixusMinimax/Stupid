@@ -195,7 +195,7 @@ parser! {
         })(),
 
         <l:Cond> "^" <r:Comparison> => (||{
-            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::BitEor, Box::new(r?)))
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::BitXor, Box::new(r?)))
         })(),
 
         <c:Comparison> => c,
@@ -488,7 +488,7 @@ pub mod ast {
         Or,
         BitAnd,
         BitOr,
-        BitEor,
+        BitXor,
     }
 
     #[derive(Debug, Clone)]

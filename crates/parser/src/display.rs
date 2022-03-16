@@ -22,7 +22,7 @@ impl Display for ast::BinOperator {
             Or => "||",
             BitAnd => "&",
             BitOr => "|",
-            BitEor => "^",
+            BitXor => "^",
         })
     }
 }

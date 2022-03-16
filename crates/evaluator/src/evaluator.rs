@@ -1,10 +1,11 @@
 use std::{
     cell::RefCell,
     fmt::Display,
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Sub},
     rc::Rc,
 };
 use type_analysis::{program::analyzed::LiteralType, TypeResult};
+use util::MyInto;
 
 pub mod analyzed {
     pub use type_analysis::program::analyzed::*;
@@ -60,18 +61,21 @@ impl Evaluator {
                 Self::execute_binop(&left.value, op, &right.value)
             }
             UnOp(_, _) => todo!(),
-            Block { statements, last } => todo!(),
+            Block {
+                statements: _,
+                last: _,
+            } => todo!(),
             FunctionCall {
-                procedure,
-                arguments,
+                procedure: _,
+                arguments: _,
             } => todo!(),
             Assignment(_, _) => todo!(),
             IfElse {
-                condition,
-                then,
-                else_,
+                condition: _,
+                then: _,
+                else_: _,
             } => todo!(),
-            e => None,
+            _ => None,
         };
         if let Some(s) = simplified {
             expr.value = s;
@@ -87,10 +91,20 @@ impl Evaluator {
         use analyzed::ExpressionValue::*;
 
         if let Some((a, b)) = match (left, right) {
+            (Boolean(a), Boolean(b)) => Some((*a, *b)),
+            (Boolean(a), Integer(b)) => Some((*a, MyInto::<bool>::into(*b))),
+            (Boolean(a), Long(b)) => Some((*a, MyInto::<bool>::into(*b))),
+            (Integer(a), Boolean(b)) => Some((MyInto::<bool>::into(*a), *b)),
+            (Long(a), Boolean(b)) => Some((MyInto::<bool>::into(*a), *b)),
+            _ => None,
+        } {
+            return Self::execute_logic(a, op, b);
+        };
+        if let Some((a, b)) = match (left, right) {
             (Integer(a), Integer(b)) => Some((*a, *b)),
             _ => None,
         } {
-            return Self::execute_arithmetic(a, op, b);
+            return Self::execute_arithmetic(a, op, b).or_else(|| Self::execute_logic(a, op, b));
         };
         if let Some((a, b)) = match (left, right) {
             (Long(a), Long(b)) => Some((*a, *b)),
@@ -98,7 +112,7 @@ impl Evaluator {
             (Long(a), Integer(b)) => Some((*a, *b as i64)),
             _ => None,
         } {
-            return Self::execute_arithmetic(a, op, b);
+            return Self::execute_arithmetic(a, op, b).or_else(|| Self::execute_logic(a, op, b));
         };
         if let Some((a, b)) = match (left, right) {
             (Float(a), Float(b)) => Some((*a, *b)),
@@ -146,7 +160,32 @@ impl Evaluator {
             GreaterEq => Some(analyzed::Expression::literal(left >= right).value),
             Less => Some(analyzed::Expression::literal(left < right).value),
             LessEq => Some(analyzed::Expression::literal(left <= right).value),
-            And | Or | BitAnd | BitOr | BitEor => None,
+            And | Or | BitAnd | BitOr | BitXor => None,
+        }
+    }
+
+    fn execute_logic<T: BitAnd + BitOr + BitXor + MyInto<bool>>(
+        left: T,
+        op: &analyzed::BinOperator,
+        right: T,
+    ) -> Option<analyzed::ExpressionValue>
+    where
+        <T as BitAnd>::Output: Into<LiteralType>,
+        <T as BitOr>::Output: Into<LiteralType>,
+        <T as BitXor>::Output: Into<LiteralType>,
+    {
+        use analyzed::BinOperator::*;
+        match op {
+            BitAnd => Some(analyzed::Expression::literal(left & right).value),
+            BitOr => Some(analyzed::Expression::literal(left | right).value),
+            BitXor => Some(analyzed::Expression::literal(left ^ right).value),
+            And => Some(analyzed::ExpressionValue::Boolean(
+                left.into() && right.into(),
+            )),
+            Or => Some(analyzed::ExpressionValue::Boolean(
+                left.into() || right.into(),
+            )),
+            _ => None,
         }
     }
 }

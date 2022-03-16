@@ -128,7 +128,7 @@ fn analyze_expr(
         BinOp(left, op, right) => {
             use parser::syntax::ast::BinOperator::*;
             match op {
-                Add | Subtract | Multiply | Divide | BitAnd | BitOr | BitEor => common_type(
+                Add | Subtract | Multiply | Divide | BitAnd | BitOr | BitXor => common_type(
                     &analyze_expr(&mut *left, analyze_all)?,
                     &analyze_expr(&mut *right, analyze_all)?,
                 ),

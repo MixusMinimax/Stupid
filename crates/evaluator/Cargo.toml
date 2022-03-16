@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 type-analysis = { path = "../type-analysis" }
+util = { path = "../util" }
