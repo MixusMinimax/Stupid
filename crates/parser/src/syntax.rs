@@ -170,103 +170,141 @@ parser! {
     };
 
     Assignment: Result<ast::Expression, ParseError> = {
-        <l:Assignment> "=" <r:Cond> => (||{
+        <l:Assignment> "=" <r:LogicOr> => (||{
             Ok(swap_assignment(l?, r?))
         })(),
 
-        <c:Cond> => c,
+        <c:LogicOr> => c,
     };
 
-    Cond: Result<ast::Expression, ParseError> = {
-        <l:Cond> "&&" <r:Comparison> => (||{
-            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::And, Box::new(r?)))
-        })(),
-
-        <l:Cond> "&" <r:Comparison> => (||{
-            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::BitAnd, Box::new(r?)))
-        })(),
-
-        <l:Cond> "||" <r:Comparison> => (||{
+    LogicOr: Result<ast::Expression, ParseError> = {
+        <l:LogicOr> "||" <r:LogicAnd> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Or, Box::new(r?)))
         })(),
 
-        <l:Cond> "|" <r:Comparison> => (||{
+        <c:LogicAnd> => c,
+    };
+
+    LogicAnd: Result<ast::Expression, ParseError> = {
+        <l:LogicAnd> "&&" <r:BitOr> => (||{
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::And, Box::new(r?)))
+        })(),
+
+        <c:BitOr> => c,
+    };
+
+    BitOr: Result<ast::Expression, ParseError> = {
+        <l:BitOr> "|" <r:BitXor> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::BitOr, Box::new(r?)))
         })(),
 
-        <l:Cond> "^" <r:Comparison> => (||{
+        <c:BitXor> => c,
+    };
+
+    BitXor: Result<ast::Expression, ParseError> = {
+        <l:BitXor> "^" <r:BitAnd> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::BitXor, Box::new(r?)))
         })(),
 
-        <c:Comparison> => c,
+        <c:BitAnd> => c,
     };
 
-    Comparison: Result<ast::Expression, ParseError> = {
-        <l:Comparison> "==" <r:Sum> => (||{
+    BitAnd: Result<ast::Expression, ParseError> = {
+        <l:BitAnd> "&" <r:Equality> => (||{
+            Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::BitAnd, Box::new(r?)))
+        })(),
+
+        <c:Equality> => c,
+    };
+
+    Equality: Result<ast::Expression, ParseError> = {
+        <l:Equality> "==" <r:Order> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Equals, Box::new(r?)))
         })(),
 
-        <l:Comparison> "!=" <r:Sum> => (||{
+        <l:Equality> "!=" <r:Order> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::NotEquals, Box::new(r?)))
         })(),
 
-        <l:Comparison> ">" <r:Sum> => (||{
+        <c:Order> => c,
+    };
+
+    Order: Result<ast::Expression, ParseError> = {
+        <l:Order> ">" <r:Sum> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Greater, Box::new(r?)))
         })(),
 
-        <l:Comparison> ">=" <r:Sum> => (||{
+        <l:Order> ">=" <r:Sum> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::GreaterEq, Box::new(r?)))
         })(),
 
-        <l:Comparison> "<" <r:Sum> => (||{
+        <l:Order> "<" <r:Sum> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Less, Box::new(r?)))
         })(),
 
-        <l:Comparison> "<=" <r:Sum> => (||{
+        <l:Order> "<=" <r:Sum> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::LessEq, Box::new(r?)))
         })(),
 
-        <s:Sum> => s,
+        <c:Sum> => c,
     };
 
     Sum: Result<ast::Expression, ParseError> = {
-        <l:Sum> "+" <r:Term> => (||{
+        <l:Sum> "+" <r:Product> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Add, Box::new(r?)))
         })(),
 
-        <l:Sum> "-" <r:Term> => (||{
+        <l:Sum> "-" <r:Product> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Subtract, Box::new(r?)))
         })(),
 
-        <t:Term> => t,
+        <t:Product> => t,
     };
 
-    Term: Result<ast::Expression, ParseError> = {
-        <l:Term> "*" <r:FunctionCall> => (||{
+    Product: Result<ast::Expression, ParseError> = {
+        <l:Product> "*" <r:Prefix> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Multiply, Box::new(r?)))
         })(),
 
-        <l:Term> "/" <r:FunctionCall> => (||{
+        <l:Product> "/" <r:Prefix> => (||{
             Ok(ast::Expression::BinOp(Box::new(l?), ast::BinOperator::Divide, Box::new(r?)))
         })(),
 
-        <f:FunctionCall> => f,
+        // TODO: Modulo
+
+        <f:Prefix> => f,
     };
 
-    FunctionCall: Result<ast::Expression, ParseError> = {
-        <f:FunctionCall> "(" <args:ExprList> ")" => (||{
+    Prefix: Result<ast::Expression, ParseError> = {
+        "-" <f:Prefix> => (||{
+            Ok(ast::Expression::UnOp(ast::UnOperator::Negate, Box::new(f?)))
+        })(),
+
+        "!" <f:Prefix> => (||{
+            Ok(ast::Expression::UnOp(ast::UnOperator::Not, Box::new(f?)))
+        })(),
+
+        "~" <f:Prefix> => (||{
+            Ok(ast::Expression::UnOp(ast::UnOperator::BitNot, Box::new(f?)))
+        })(),
+
+        "*" <f:Prefix> => (||{
+            Ok(ast::Expression::UnOp(ast::UnOperator::Deref, Box::new(f?)))
+        })(),
+
+        <c:Suffix> => c,
+    };
+
+    Suffix: Result<ast::Expression, ParseError> = {
+        <m:Suffix> "." <name:"var"> => (||{
+            Ok(ast::Expression::Member(Box::new(m?), name.0))
+        })(),
+
+        <f:Suffix> "(" <args:ExprList> ")" => (||{
             Ok(ast::Expression::FunctionCall{
                 function: Box::new(f?),
                 arguments: args?,
             })
-        })(),
-
-        <m:Member> => m,
-    };
-
-    Member: Result<ast::Expression, ParseError> = {
-        <m:Member> "." <name:"var"> => (||{
-            Ok(ast::Expression::Member(Box::new(m?), name.0))
         })(),
 
         <f:Fac> => f,
@@ -296,22 +334,6 @@ parser! {
         "(" <e:Expr> ")" => (||{
             // This is needed later when flipping assignments around
             Ok(ast::Expression::Bracketed(Box::new(e?)))
-        })(),
-
-        "-" <f:Fac> => (||{
-            Ok(ast::Expression::UnOp(ast::UnOperator::Negate, Box::new(f?)))
-        })(),
-
-        "!" <f:Fac> => (||{
-            Ok(ast::Expression::UnOp(ast::UnOperator::Not, Box::new(f?)))
-        })(),
-
-        "~" <f:Fac> => (||{
-            Ok(ast::Expression::UnOp(ast::UnOperator::BitNot, Box::new(f?)))
-        })(),
-
-        "*" <f:Fac> => (||{
-            Ok(ast::Expression::UnOp(ast::UnOperator::Deref, Box::new(f?)))
         })(),
 
         "{" <body:BlockBody> "}" => body,
