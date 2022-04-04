@@ -27,6 +27,10 @@ impl Evaluator {
         for constant in constants {
             simplifier::simplify_declaration(constant)?;
         }
+        let procs: Vec<_> = self.program.procedures.values().map(|e| e.clone()).collect();
+        for proc in procs {
+            simplifier::simplify_procedure(proc)?;
+        }
         Ok(EvaluateResult {
             program: self.program,
         })

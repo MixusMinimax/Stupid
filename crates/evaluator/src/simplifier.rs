@@ -1,6 +1,7 @@
 mod analyzed {
     pub use super::super::analyzed::*;
 }
+use super::EvaluateError;
 use analyzed::LiteralType;
 use std::{
     cell::RefCell,
@@ -8,13 +9,20 @@ use std::{
     rc::Rc,
 };
 use util::MyInto;
-use super::EvaluateError;
 
 pub fn simplify_declaration(decl: Rc<RefCell<analyzed::Declaration>>) -> Result<(), EvaluateError> {
     if let Some(value) = (*decl).borrow_mut().get_mut().2 {
         let x = &mut **value;
         simplify_expression(x)?;
     }
+    Ok(())
+}
+
+pub fn simplify_procedure(proc: Rc<RefCell<analyzed::Procedure>>) -> Result<(), EvaluateError> {
+    for arg in (*proc).borrow_mut().arguments.values() {
+        simplify_declaration(arg.clone())?;
+    }
+    simplify_expression(&mut (*proc).borrow_mut().return_value)?;
     Ok(())
 }
 
@@ -33,17 +41,20 @@ pub fn simplify_expression(expr: &mut analyzed::Expression) -> Result<(), Evalua
         Block {
             statements: _,
             last: _,
-        } => todo!(),
+        } => None,
         FunctionCall {
             procedure: _,
             arguments: _,
-        } => todo!(),
-        Assignment(_, _) => todo!(),
+        } => None,
+        Assignment(_, value) => {
+            simplify_expression(&mut **value)?;
+            None
+        }
         IfElse {
             condition: _,
             then: _,
             else_: _,
-        } => todo!(),
+        } => None,
         _ => None,
     };
     if let Some(s) = simplified {
@@ -56,8 +67,8 @@ pub fn execute_unop(
     op: &analyzed::UnOperator,
     value: &analyzed::ExpressionValue,
 ) -> Option<analyzed::ExpressionValue> {
-    use analyzed::UnOperator::*;
     use analyzed::ExpressionValue::*;
+    use analyzed::UnOperator::*;
     return match op {
         Negate => match value {
             Integer(a) => Some(Integer(-a)),
@@ -79,7 +90,7 @@ pub fn execute_unop(
             _ => None,
         },
         Deref => None,
-    }
+    };
 }
 
 pub fn execute_binop(
