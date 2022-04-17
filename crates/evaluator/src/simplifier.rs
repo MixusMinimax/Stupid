@@ -5,6 +5,7 @@ use super::EvaluateError;
 use analyzed::LiteralType;
 use std::{
     cell::RefCell,
+    mem::take,
     ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Sub},
     rc::Rc,
 };
@@ -43,10 +44,19 @@ pub fn simplify_expression(expr: &mut analyzed::Expression) -> Result<(), Evalua
             for statement in statements.iter_mut() {
                 simplify_statement(statement)?;
             }
+            // Remove all semicolons.
+            statements.retain(|x| {
+                if let Statement::SemiColon = x {
+                    false
+                } else {
+                    true
+                }
+            });
+
             if let Some(last) = last {
                 simplify_expression(last)?;
                 if statements.is_empty() {
-                    Some(last.value.clone())
+                    Some(take(&mut last.value))
                 } else {
                     None
                 }
@@ -81,9 +91,9 @@ pub fn simplify_expression(expr: &mut analyzed::Expression) -> Result<(), Evalua
             } = **condition
             {
                 if b {
-                    Some(then.value.clone())
+                    Some(take(&mut then.value))
                 } else {
-                    Some(else_.value.clone())
+                    Some(take(&mut else_.value))
                 }
             } else {
                 None
@@ -103,10 +113,22 @@ pub fn simplify_statement(statement: &mut Statement) -> Result<(), EvaluateError
         VariableDeclaration(decl) => simplify_declaration(decl.clone()),
         ExpressionStatement(expr) => simplify_expression(expr),
         If { condition, then } => {
+            use analyzed::ExpressionValue::*;
             simplify_expression(condition)?;
             simplify_expression(then)?;
+            if let analyzed::Expression {
+                value: Boolean(b), ..
+            } = **condition
+            {
+                if b {
+                    *statement = ExpressionStatement(take(&mut **then));
+                } else {
+                    *statement = SemiColon;
+                }
+            }
             Ok(())
         }
+        SemiColon => Ok(()),
     }
 }
 

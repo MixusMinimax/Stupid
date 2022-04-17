@@ -213,12 +213,17 @@ fn analyze_expr(
 fn analyze_statement(statement: &mut analyzed::Statement) -> Result<(), TypeAnalysisError> {
     use analyzed::Statement::*;
     match statement {
-        ExpressionStatement(expr) => analyze_expr(expr, true)?,
-        VariableDeclaration(decl) => analyze_decl(decl.clone(), true)?,
+        ExpressionStatement(expr) => {
+            analyze_expr(expr, true)?;
+        }
+        VariableDeclaration(decl) => {
+            analyze_decl(decl.clone(), true)?;
+        }
         If { condition, then } => {
             analyze_expr(condition, true)?;
-            analyze_expr(then, true)?
+            analyze_expr(then, true)?;
         }
+        SemiColon => (),
     };
     Ok(())
 }

@@ -62,6 +62,17 @@ proc bar {
     let a: long = foo();
     a
 }
+
+proc inline_if {
+    if true {
+        foo();
+        bar();
+    };
+    if false {
+        add(1);
+        sub(2);
+    };
+}
 ```
 
 Stringified AST after analysis:
@@ -84,5 +95,12 @@ proc foo() -> long bar()
 proc bar() -> long {
     let a: long = foo();
     a
+}
+
+proc inline_if() -> void {
+    {
+        foo();
+        bar();
+    };
 }
 ```

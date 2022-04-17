@@ -175,6 +175,7 @@ impl Display for analyzed::Statement {
                     indent = indent
                 )
             }
+            SemiColon => write!(f, ";"),
         }
     }
 }

@@ -29,3 +29,14 @@ proc bar {
     let a: long = foo();
     a
 }
+
+proc inline_if {
+    if true {
+        foo();
+        bar();
+    };
+    if false {
+        add(1);
+        sub(2);
+    };
+}

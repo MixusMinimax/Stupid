@@ -9,7 +9,7 @@ mod ast {
 pub mod analyzed {
     pub use super::ast::{BinOperator, UnOperator};
     use indexmap::IndexMap;
-    use std::{cell::RefCell, rc::Rc};
+    use std::{cell::RefCell, default, rc::Rc};
     use util::MyInto;
 
     #[derive(Debug, Clone)]
@@ -168,6 +168,15 @@ pub mod analyzed {
         }
     }
 
+    impl Default for Expression {
+        fn default() -> Self {
+            Expression {
+                value: ExpressionValue::default(),
+                type_: Some("void".to_string()),
+            }
+        }
+    }
+
     #[derive(Debug, Clone)]
     pub enum ExpressionValue {
         Integer(i32),
@@ -198,6 +207,15 @@ pub mod analyzed {
         },
     }
 
+    impl Default for ExpressionValue {
+        fn default() -> Self {
+            ExpressionValue::Block {
+                statements: Vec::new(),
+                last: None,
+            }
+        }
+    }
+
     #[derive(Debug, Clone)]
     pub enum Statement {
         ExpressionStatement(Expression),
@@ -206,6 +224,7 @@ pub mod analyzed {
             condition: Box<Expression>,
             then: Box<Expression>,
         },
+        SemiColon,
     }
 }
 
