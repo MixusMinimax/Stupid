@@ -45,6 +45,14 @@ proc sub(a: int, b := 1) {
     a - b
 }
 
+proc ifelse {
+    if 123 == 321 || 2 == 2 && 1 {
+        1 + 2
+    } else {
+        3 + 4
+    }
+}
+
 proc foo {
     bar()
 }
@@ -68,6 +76,8 @@ proc main() -> int (1 - add(3, -3))
 proc add(a: int, b: int := 1) -> int ((((a + b) * 3) / sub(1, 3)) + sub(3))
 
 proc sub(a: int, b: int := 1) -> int (a - b)
+
+proc ifelse() -> int 3
 
 proc foo() -> long bar()
 
