@@ -8,6 +8,7 @@ use std::{
     ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Sub},
     rc::Rc,
 };
+use type_analysis::program::analyzed::Statement;
 use util::MyInto;
 
 pub fn simplify_declaration(decl: Rc<RefCell<analyzed::Declaration>>) -> Result<(), EvaluateError> {
@@ -38,29 +39,75 @@ pub fn simplify_expression(expr: &mut analyzed::Expression) -> Result<(), Evalua
             simplify_expression(&mut **expr)?;
             execute_unop(op, &expr.value)
         }
-        Block {
-            statements: _,
-            last: _,
-        } => None,
+        Block { statements, last } => {
+            for statement in statements.iter_mut() {
+                simplify_statement(statement)?;
+            }
+            if let Some(last) = last {
+                simplify_expression(last)?;
+                if statements.is_empty() {
+                    Some(last.value.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }
         FunctionCall {
             procedure: _,
-            arguments: _,
-        } => None,
+            arguments,
+        } => {
+            for arg in arguments.iter_mut() {
+                simplify_expression(arg)?;
+            }
+            None
+        }
         Assignment(_, value) => {
             simplify_expression(&mut **value)?;
             None
         }
         IfElse {
-            condition: _,
-            then: _,
-            else_: _,
-        } => None,
-        _ => None,
+            condition,
+            then,
+            else_,
+        } => {
+            use analyzed::ExpressionValue::*;
+            simplify_expression(&mut **condition)?;
+            simplify_expression(&mut **then)?;
+            simplify_expression(&mut **else_)?;
+            if let analyzed::Expression {
+                value: Boolean(b), ..
+            } = **condition
+            {
+                if b {
+                    Some(then.value.clone())
+                } else {
+                    Some(else_.value.clone())
+                }
+            } else {
+                None
+            }
+        }
+        Integer(_) | Long(_) | Float(_) | Double(_) | Boolean(_) | Variable(_) => None,
     };
     if let Some(s) = simplified {
         expr.value = s;
     }
     Ok(())
+}
+
+pub fn simplify_statement(statement: &mut Statement) -> Result<(), EvaluateError> {
+    use Statement::*;
+    match statement {
+        VariableDeclaration(decl) => simplify_declaration(decl.clone()),
+        ExpressionStatement(expr) => simplify_expression(expr),
+        If { condition, then } => {
+            simplify_expression(condition)?;
+            simplify_expression(then)?;
+            Ok(())
+        }
+    }
 }
 
 pub fn execute_unop(

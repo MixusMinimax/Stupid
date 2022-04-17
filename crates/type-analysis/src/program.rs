@@ -77,7 +77,7 @@ pub mod analyzed {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Expression {
         pub value: ExpressionValue,
         pub type_: Option<String>,
@@ -168,7 +168,7 @@ pub mod analyzed {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum ExpressionValue {
         Integer(i32),
         Long(i64),
@@ -198,7 +198,7 @@ pub mod analyzed {
         },
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum Statement {
         ExpressionStatement(Expression),
         VariableDeclaration(Rc<RefCell<Declaration>>),

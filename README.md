@@ -15,8 +15,8 @@ Until there is proper documentation, just take a look at the [samples](./samples
 - [X] Parsing
 - [X] Textmate Grammar
 - [X] Type analysis
-- [ ] AST simplification (Almost done)
-- [ ] AST function evaluation for constants
+- [X] AST simplification
+- [ ] AST function and constant evaluation
 - [ ] Compilation to an intermediary language (something like BRIL)
 - [ ] Emulator for that intermediary language
 - [ ] Compilation to actual assembly
