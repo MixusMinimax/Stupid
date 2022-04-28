@@ -1,6 +1,7 @@
-use std::{fmt::Display, iter::Inspect};
-
-use crate::intermediary_language::{Constant, Function, Instruction, IntermediaryLanguage};
+use crate::intermediary_language::{
+    Constant, Function, Immediate, Instruction, IntermediaryLanguage, Variable,
+};
+use std::{env::var, fmt::Display};
 
 impl Display for IntermediaryLanguage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -44,9 +45,26 @@ impl Display for Instruction {
         use Instruction::*;
         match self {
             Label(name) => write!(f, "{}:", name)?,
-            Return => write!(f, "  return")?,
+            Return(variable) => write!(f, "  return {}", variable)?,
+            &Self::AssignImmediate(ref variable, ref immediate) => {
+                write!(f, "  ASSIGN {} {}", variable, immediate)?;
+            }
             _ => write!(f, "  # Not Implemented!")?,
         };
+        Ok(())
+    }
+}
+
+impl Display for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "v{}({})", self.id, self.size)?;
+        Ok(())
+    }
+}
+
+impl Display for Immediate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "#imm")?;
         Ok(())
     }
 }

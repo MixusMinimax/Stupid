@@ -9,3 +9,4 @@ edition = "2021"
 evaluator = { path = "../evaluator" }
 util = { path = "../util" }
 indexmap = "1.8.0"
+strum_macros = "0.24"

@@ -7,6 +7,8 @@
 
 pub mod compiler;
 pub mod intermediary_language;
+pub mod function_compiler;
+pub mod expression_compiler;
 mod display;
 pub use compiler::Compiler;
 

@@ -1,11 +1,13 @@
 use indexmap::IndexMap;
+use strum_macros::{self, Display};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, strum_macros::Display)]
 pub enum VariableSize {
     LowByte,
     HighByte,
     Word,
     DoubleWord,
+    Long,
 }
 
 /// Represents a variable in memory.
@@ -20,9 +22,16 @@ pub struct Variable {
 }
 
 #[derive(Debug, Clone)]
+pub enum Immediate {
+    Integer { size: VariableSize, value: u64 },
+}
+
+#[derive(Debug, Clone)]
 pub enum Instruction {
     Label(String),
-    Return,
+    Return(Variable),
+    AssignVariable(Variable, Variable),
+    AssignImmediate(Variable, Immediate),
 }
 
 #[derive(Debug)]
@@ -35,6 +44,15 @@ pub struct Constant {
 pub struct Function {
     pub name: String,
     pub instructions: Vec<Instruction>,
+}
+
+impl Function {
+    pub fn new<S: AsRef<str>>(name: S) -> Self {
+        Function {
+            name: name.as_ref().to_string(),
+            instructions: vec![],
+        }
+    }
 }
 
 #[derive(Debug)]
