@@ -47,7 +47,7 @@ impl Display for Instruction {
             Label(name) => write!(f, "{}:", name)?,
             Return(variable) => write!(f, "  return {}", variable)?,
             &Self::AssignImmediate(ref variable, ref immediate) => {
-                write!(f, "  ASSIGN {} {}", variable, immediate)?;
+                write!(f, "  assign {} = {}", variable, immediate)?;
             }
             _ => write!(f, "  # Not Implemented!")?,
         };
