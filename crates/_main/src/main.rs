@@ -29,5 +29,5 @@ fn main() {
     );
     let compiler = Compiler::new(evaluated);
     let intermediary = compiler.compile().unwrap();
-    println!("{:?}", intermediary);
+    println!("{}", intermediary);
 }

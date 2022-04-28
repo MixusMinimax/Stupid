@@ -7,6 +7,7 @@
 
 pub mod compiler;
 pub mod intermediary_language;
+mod display;
 pub use compiler::Compiler;
 
 #[cfg(test)]
