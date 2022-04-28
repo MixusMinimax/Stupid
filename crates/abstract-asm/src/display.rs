@@ -19,7 +19,7 @@ impl Display for IntermediaryLanguage {
         for function in self.functions.values() {
             write!(f, "{}", function)?;
         }
-        todo!()
+        Ok(())
     }
 }
 
@@ -41,8 +41,11 @@ impl Display for Function {
 
 impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Instruction::*;
         match self {
-            _ => write!(f, "# Not Implemented!")?,
+            Label(name) => write!(f, "{}:", name)?,
+            Return => write!(f, "  return")?,
+            _ => write!(f, "  # Not Implemented!")?,
         };
         Ok(())
     }
@@ -53,7 +56,7 @@ fn display_instructions(
     f: &mut std::fmt::Formatter<'_>,
 ) -> std::fmt::Result {
     for instruction in instructions.iter() {
-        write!(f, "  {}\n", instruction)?;
+        write!(f, "{}\n", instruction)?;
     }
     return Ok(());
 }

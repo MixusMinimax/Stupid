@@ -1,4 +1,4 @@
-use crate::intermediary_language::{Constant, Function, IntermediaryLanguage};
+use crate::intermediary_language::{Constant, Function, Instruction, IntermediaryLanguage};
 use evaluator::{
     analyzed::{Declaration, Procedure},
     EvaluateResult,
@@ -48,10 +48,11 @@ impl Compiler {
 
     fn compile_function(&self, p: &Rc<RefCell<Procedure>>) -> Result<Function, CompileError> {
         let ast_procedure = (**p).borrow();
-        let compiled = Function {
+        let mut compiled = Function {
             name: ast_procedure.name.clone(),
-            instructions: vec![],
+            instructions: vec![Instruction::Label(ast_procedure.name.clone())],
         };
+        compiled.instructions.push(Instruction::Return);
         Ok(compiled)
     }
 }

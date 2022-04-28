@@ -20,7 +20,10 @@ pub struct Variable {
 }
 
 #[derive(Debug, Clone)]
-pub enum Instruction {}
+pub enum Instruction {
+    Label(String),
+    Return,
+}
 
 #[derive(Debug)]
 pub struct Constant {
