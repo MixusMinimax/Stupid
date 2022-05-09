@@ -35,7 +35,7 @@ impl<'a> FunctionCompiler<'a> {
         let return_variable = compile_expression(
             &self.procedure.return_value,
             &mut compiled.instructions,
-            |size| self.new_variable(size),
+            &mut |size| self.new_variable(size),
         )?;
 
         compiled

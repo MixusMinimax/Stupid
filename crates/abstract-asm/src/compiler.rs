@@ -1,10 +1,13 @@
-use crate::{intermediary_language::{Constant, Function, Instruction, IntermediaryLanguage}, function_compiler::FunctionCompiler};
+use crate::{
+    function_compiler::FunctionCompiler,
+    intermediary_language::{Constant, Function, Instruction, IntermediaryLanguage},
+};
 use evaluator::{
     analyzed::{Declaration, Procedure},
     EvaluateResult,
 };
 use indexmap::IndexMap;
-use std::{borrow::Borrow, cell::RefCell, fmt::Display, rc::Rc};
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 mod analyzed {
     pub use evaluator::analyzed::*;
 }
@@ -48,7 +51,7 @@ impl Compiler {
 
     fn compile_function(&self, p: &Rc<RefCell<Procedure>>) -> Result<Function, CompileError> {
         let ast_procedure = (**p).borrow();
-        Ok(FunctionCompiler::new(& *ast_procedure).compile()?)
+        Ok(FunctionCompiler::new(&*ast_procedure).compile()?)
     }
 }
 

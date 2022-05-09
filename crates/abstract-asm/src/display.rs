@@ -1,7 +1,7 @@
 use crate::intermediary_language::{
     Constant, Function, Immediate, Instruction, IntermediaryLanguage, Variable,
 };
-use std::{env::var, fmt::Display};
+use std::fmt::Display;
 
 impl Display for IntermediaryLanguage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -64,7 +64,12 @@ impl Display for Variable {
 
 impl Display for Immediate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "#imm")?;
+        use Immediate::*;
+        match self {
+            Integer { size, value } => {
+                write!(f, "{}({})", value, size)?;
+            }
+        };
         Ok(())
     }
 }
